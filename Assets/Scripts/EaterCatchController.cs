@@ -1,51 +1,86 @@
-using UnityEngine;
+Ôªøusing UnityEngine;
 
 public class EaterCatchController : MonoBehaviour
 {
     [SerializeField] private MicrophoneAnalysis microphone;
     [SerializeField] private GameManager gameManager;
+    [SerializeField] private FallingItemSpawner fallingItemSpawner;
+    [SerializeField] private float maxScale = 1.8f;
+    [SerializeField] private float maxGain = 0.1f;
+    [SerializeField] private float stiffness = 100f;
+    [SerializeField] private float damping = 15f;
+
+    [SerializeField] private Sprite EatingImage;
+    [SerializeField] private Sprite ClosingImage;
+
+    private SpriteRenderer myspriterenderer;
+    private float smoothedGain;
+    private Vector3 originalScale;
+    private float scaleMultiplier = 1f;
 
     private float scaleVelocity = 0f;
     private void Awake()
     {
         if (microphone == null)
             microphone = GetComponentInParent<MicrophoneAnalysis>();
+        originalScale = transform.localScale;
+        myspriterenderer = GetComponent<SpriteRenderer>();
     }
+
     private void Update()
     {
-        if (! (microphone.Gain < 0.1f))
-            return;
-        BounceByGain(microphone.Gain, ref scaleVelocity);
+        if (microphone == null) return;
+
+        float gain = microphone.Gain;
+
+        // Èü≥Èáè„ÅÆÊÄ•ÊøÄ„Å™Â§âÂåñ„ÇíÊªë„Çâ„Åã„Å´„Åô„Çã
+        float smoothTime = gain > smoothedGain ? 0.05f : 0.15f;
+
+        smoothedGain = Mathf.Lerp(
+            smoothedGain,
+            gain,
+            1f - Mathf.Exp(-Time.deltaTime / smoothTime)
+        );
+        if (microphone.Gain < 0.1f)
+        {
+           myspriterenderer.sprite = ClosingImage;
+        }
+        else
+        {
+
+            myspriterenderer.sprite = EatingImage;
+        }
+            BounceByGain(smoothedGain, ref scaleVelocity);
     }
+
     private void BounceByGain(float gain, ref float velocity)
     {
-        // âπó Ç…âûÇ∂ÇΩñ⁄ïWÉTÉCÉY
-        float targetScale = Mathf.Lerp(
-            1f, 1.8f, Mathf.Clamp01(gain * 10f)
-        );
+        // Èü≥Èáè„ÇíÊã°Â§ßÁéá„Å´Â§âÊèõ
+        float normalizedGain = Mathf.Clamp01(gain / maxGain);
+        float targetScale = Mathf.Lerp(1f, maxScale, normalizedGain);
 
-        // ÉoÉlÇÃã≠Ç≥Ç∆óhÇÍÇÃå∏êä
-        float stiffness = 100f;
-        float damping = 12f;
+        // „Éê„ÉçÈÅãÂãï
+        float dt = Mathf.Min(Time.deltaTime, 0.04f);
 
-        float currentScale = transform.localScale.x;
-        float dt = Time.deltaTime;
-
-        // ÉoÉlâ^ìÆ
         float acceleration =
-            (targetScale - currentScale) * stiffness
+            (targetScale - scaleMultiplier) * stiffness
             - velocity * damping;
 
         velocity += acceleration * dt;
-
-        float newScale = Mathf.Max(
-            0.1f, currentScale + velocity * dt
+        scaleMultiplier = Mathf.Max(
+            0.1f,
+            scaleMultiplier + velocity * dt
         );
 
-        // Collider2DÇ‡TransformÇ…í«è]ÇµÇƒägëÂèkè¨
-        transform.localScale = Vector3.one * newScale;
+        // ÂÖÉ„ÅÆÂ§ß„Åç„Åï„ÇíÂü∫Ê∫ñ„Å´Êã°Â§ßÁ∏ÆÂ∞è
+        transform.localScale = new Vector3(
+    originalScale.x * scaleMultiplier,
+    originalScale.y * Mathf.Lerp(1f, scaleMultiplier, 0.1f),
+    originalScale.z
+);
     }
-    /*
+
+    
     private void OnTriggerEnter2D(Collider2D other)
     {
         TryCatch(other);
@@ -56,23 +91,41 @@ public class EaterCatchController : MonoBehaviour
         TryCatch(other);
     }
 
-    /*private void TryCatch(Collider2D other)
+
+    private void TryCatch(Collider2D other)
     {
         if (microphone == null || gameManager == null)
             return;
 
-        // ê∫ÇèoÇµÇƒÇ¢Ç»Ç¢Ç∆êHÇ◊ÇÁÇÍÇ»Ç¢
-        if (!microphone.IsMouthOpen)
+        // Â£∞„ÇíÂá∫„Åó„Å¶„ÅÑ„Å™„ÅÑ„Å®Âèñ„Çå„Å™„ÅÑ
+        if (microphone.Gain <= 0.1f)
             return;
 
-        CatchableItem item = other.GetComponent<CatchableItem>();
+        CatchableItem item =
+            other.GetComponent<CatchableItem>();
 
         if (item == null)
             return;
 
-        if (item.TryConsume())
+        bool isFeverItem =
+            other.GetComponent<FeverItem>() != null;
+
+        int score = item.ScoreDelta;
+
+        if (!item.TryConsume())
+            return;
+
+        gameManager.AddScore(score);
+
+        if (isFeverItem)
         {
-            gameManager.AddScore(item.ScoreDelta);
+            if (fallingItemSpawner != null)
+                fallingItemSpawner.StartFever();
+            else
+                Debug.LogWarning(
+                    "FallingItemSpawner „ÅåË®≠ÂÆö„Åï„Çå„Å¶„ÅÑ„Åæ„Åõ„Çì"
+                );
         }
-    }*/
+    }
+
 }

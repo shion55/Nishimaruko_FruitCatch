@@ -2,9 +2,8 @@ using UnityEngine;
 
 public class MicrophoneAnalysis : MonoBehaviour
 {
-
     [Header("Microphone")]
-    [Tooltip("空欄ならOSのデフォルトマイク")]
+    [Tooltip("Empty = OS default microphone")]
     [SerializeField] private string deviceName = "";
     [SerializeField] private int sampleRate = 44100;
     [SerializeField, Min(0.02f)] private float updateInterval = 0.05f;
@@ -15,10 +14,14 @@ public class MicrophoneAnalysis : MonoBehaviour
     [SerializeField, Range(0.05f, 0.3f)] private float yinThreshold = 0.15f;
     [SerializeField, Range(0f, 0.1f)] private float pitchNoiseGate = 0.01f;
 
-    public float Gain { get; private set; }      // RMS: 0～1程度
-    public float GainDb { get; private set; }    // dBFS: 通常は負の値
-    public float PitchHz { get; private set; }   // ピッチ検出不可なら0
-    public float PitchConfidence { get; private set; } // 0～1
+    public float Gain { get; private set; }
+    public float GainDb { get; private set; } = -120f;
+    public float PitchHz { get; private set; }
+    public float PitchConfidence { get; private set; }
+
+    // Empty means the OS default microphone.
+    public string ActiveDeviceName => activeDevice ?? "";
+    public bool IsCapturing => microphoneClip != null;
 
     private const int AnalysisFrames = 2048;
 
@@ -34,16 +37,8 @@ public class MicrophoneAnalysis : MonoBehaviour
     private float elapsed;
     private bool bufferReady;
 
-    private void Start()
+    private void Awake()
     {
-        if (Microphone.devices.Length == 0)
-        {
-            Debug.LogError("MicrophoneAnalyzer: マイクが見つかりません。");
-            enabled = false;
-            return;
-        }
-
-        activeDevice = string.IsNullOrWhiteSpace(deviceName) ? null : deviceName;
         sampleRate = Mathf.Max(8000, sampleRate);
 
         float low = Mathf.Max(40f, minPitchHz);
@@ -51,20 +46,84 @@ public class MicrophoneAnalysis : MonoBehaviour
         minLag = Mathf.Max(2, Mathf.FloorToInt(sampleRate / high));
         maxLag = Mathf.CeilToInt(sampleRate / low);
         readFrames = AnalysisFrames + maxLag;
-
-        microphoneClip = Microphone.Start(activeDevice, true, 1, sampleRate);
-        if (microphoneClip == null || microphoneClip.samples < readFrames)
-        {
-            Debug.LogError("MicrophoneAnalyzer: マイクの開始またはバッファ確保に失敗しました。");
-            enabled = false;
-            return;
-        }
-
-        channels = microphoneClip.channels;
-        interleavedSamples = new float[readFrames * channels];
         monoSamples = new float[readFrames];
         yinDifference = new float[maxLag + 1];
-        GainDb = -120f;
+    }
+
+    private void OnEnable()
+    {
+        SelectMicrophone(deviceName);
+    }
+
+    // Called by the debug UI. It changes the microphone without restarting Play mode.
+    // Returns false if the selected device cannot be opened.
+    public bool SelectMicrophone(string requestedDeviceName)
+    {
+        requestedDeviceName = string.IsNullOrWhiteSpace(requestedDeviceName)
+            ? "" : requestedDeviceName;
+
+        if (Microphone.devices.Length == 0)
+        {
+            StopMicrophone();
+            Debug.LogWarning("MicrophoneAnalysis: No microphone devices found.");
+            return false;
+        }
+
+        if (requestedDeviceName.Length > 0)
+        {
+            bool found = false;
+            foreach (string name in Microphone.devices)
+            {
+                if (name == requestedDeviceName)
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                Debug.LogWarning("MicrophoneAnalysis: Device not found: " + requestedDeviceName);
+                return false;
+            }
+        }
+
+        // End the previous session before starting the next device.
+        StopMicrophone();
+        string requested = requestedDeviceName.Length == 0 ? null : requestedDeviceName;
+
+        try
+        {
+            AudioClip clip = Microphone.Start(requested, true, 1, sampleRate);
+            if (clip == null)
+            {
+                Debug.LogError("MicrophoneAnalysis: Failed to start microphone.");
+                return false;
+            }
+            if (clip.samples < readFrames)
+            {
+                Microphone.End(requested);
+                Debug.LogError("MicrophoneAnalysis: Microphone buffer is too small.");
+                return false;
+            }
+
+            microphoneClip = clip;
+            activeDevice = requested;
+            deviceName = requestedDeviceName;
+            channels = microphoneClip.channels;
+            interleavedSamples = new float[readFrames * channels];
+            elapsed = 0f;
+            bufferReady = false;
+            Gain = 0f;
+            GainDb = -120f;
+            PitchHz = 0f;
+            PitchConfidence = 0f;
+            return true;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError("MicrophoneAnalysis: Failed to open microphone: " + e.Message);
+            return false;
+        }
     }
 
     private void Update()
@@ -78,7 +137,6 @@ public class MicrophoneAnalysis : MonoBehaviour
         int position = Microphone.GetPosition(activeDevice);
         if (position < 0) return;
 
-        // 録音開始直後に未書き込み領域を読まないようにする。
         if (!bufferReady)
         {
             if (position < readFrames) return;
@@ -87,10 +145,8 @@ public class MicrophoneAnalysis : MonoBehaviour
 
         int offset = (position - readFrames + microphoneClip.samples)
                      % microphoneClip.samples;
-
         if (!microphoneClip.GetData(interleavedSamples, offset)) return;
 
-        // ステレオ入力でもモノラルにまとめて解析する。
         for (int i = 0; i < readFrames; i++)
         {
             float sum = 0f;
@@ -100,7 +156,6 @@ public class MicrophoneAnalysis : MonoBehaviour
             monoSamples[i] = sum / channels;
         }
 
-        // DCオフセットを除去。
         double mean = 0.0;
         for (int i = 0; i < readFrames; i++) mean += monoSamples[i];
         float dc = (float)(mean / readFrames);
@@ -116,13 +171,12 @@ public class MicrophoneAnalysis : MonoBehaviour
         PitchHz = 0f;
         PitchConfidence = 0f;
         if (Gain < pitchNoiseGate) return;
-        Debug.Log(Gain);
+
         AnalyzePitch();
     }
 
     private void AnalyzePitch()
     {
-        // YINの差分関数。比較区間の長さを固定してラグ間の偏りを抑える。
         for (int tau = 1; tau <= maxLag; tau++)
         {
             double sum = 0.0;
@@ -134,7 +188,6 @@ public class MicrophoneAnalysis : MonoBehaviour
             yinDifference[tau] = (float)sum;
         }
 
-        // Cumulative Mean Normalized Difference Function (CMNDF)
         double runningSum = 0.0;
         for (int tau = 1; tau <= maxLag; tau++)
         {
@@ -158,7 +211,6 @@ public class MicrophoneAnalysis : MonoBehaviour
 
         if (bestLag < 0) return;
 
-        // 放物線補間で整数サンプル以下の周期を推定。
         float refinedLag = bestLag;
         if (bestLag > 1 && bestLag < maxLag)
         {
@@ -177,13 +229,24 @@ public class MicrophoneAnalysis : MonoBehaviour
         PitchConfidence = Mathf.Clamp01(1f - yinDifference[bestLag]);
     }
 
-    private void OnDisable()
+    private void StopMicrophone()
     {
         if (microphoneClip != null)
         {
             Microphone.End(activeDevice);
             microphoneClip = null;
         }
+        activeDevice = null;
+        interleavedSamples = null;
+        bufferReady = false;
+        Gain = 0f;
+        GainDb = -120f;
+        PitchHz = 0f;
+        PitchConfidence = 0f;
+    }
+
+    private void OnDisable()
+    {
+        StopMicrophone();
     }
 }
-    
