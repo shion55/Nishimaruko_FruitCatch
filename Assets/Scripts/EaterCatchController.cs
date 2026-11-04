@@ -19,6 +19,7 @@ public class EaterCatchController : MonoBehaviour
     private float scaleMultiplier = 1f;
 
     private float scaleVelocity = 0f;
+
     private void Awake()
     {
         if (microphone == null)
