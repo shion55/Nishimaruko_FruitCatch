@@ -1954,7 +1954,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\u30DE\u30A4\u30AF\u306B\u3080\u304B\u3063\u3066\u3001\u58F0\u3092\u51FA\u3057\u3066\u306D"
+  m_text: "\u30DE\u30A4\u30AF\u306B\u3080\u304B\u3063\u3066\u3001\u3053\u3048\u3092\u3060\u3057\u3066\u306D"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 349213307ef7d2e4784e24fc50617ccf, type: 2}
   m_sharedMaterial: {fileID: -3528156290726529903, guid: 349213307ef7d2e4784e24fc50617ccf, type: 2}
@@ -3790,7 +3790,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "Eater\n\n\u58F0\u3092\u51FA\u3059\u3068\u53E3\u3092\u3072\u3089\u3044\u3066\n\u304F\u3060\u3082\u306E\u3092\u98DF\u3079\u3089\u308C\u308B\u3088\n\n\u58F0\u306E\u9AD8\u3055\u3092\u304B\u3048\u308B\u3068\n\u306A\u306B\u304B\u304C\u304B\u308F\u308B\u304B\u3082\uFF01"
+  m_text: "Eater\n\n\u3053\u3048\u3092\u3060\u3059\u3068\u53E3\u3092\u3072\u3089\u3044\u3066\n\u304F\u3060\u3082\u306E\u3092\u305F\u3079\u3089\u308C\u308B\u3088\n\n\u3053\u3048\u306E\u9AD8\u3055\u3092\u304B\u3048\u308B\u3068\n\u306A\u306B\u304B\u304C\u304B\u308F\u308B\u304B\u3082\uFF01"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 349213307ef7d2e4784e24fc50617ccf, type: 2}
   m_sharedMaterial: {fileID: -3528156290726529903, guid: 349213307ef7d2e4784e24fc50617ccf, type: 2}
@@ -3896,6 +3896,10 @@ GameObject:
   m_Component:
   - component: {fileID: 1793840065}
   - component: {fileID: 1793840064}
+  - component: {fileID: 1793840068}
+  - component: {fileID: 1793840067}
+  - component: {fileID: 1793840066}
+  - component: {fileID: 1793840069}
   m_Layer: 0
   m_Name: PreparationFlowController
   m_TagString: Untagged
@@ -3919,30 +3923,30 @@ MonoBehaviour:
   - displayName: "\u958B\u59CB\uFF08\u4E21\u624B\uFF09"
     panel: {fileID: 1581069438}
     requiredSignal: 1
-    requiredHoldSeconds: 0.8
+    requiredHoldSeconds: 1
   - displayName: "2\u4EBA\u30D7\u30EC\u30A4\u8AAC\u660E"
     panel: {fileID: 1502833444}
-    requiredSignal: 0
-    requiredHoldSeconds: 0.8
+    requiredSignal: 4
+    requiredHoldSeconds: 7
   - displayName: "\u9854\u30FBCarrier"
     panel: {fileID: 930587012}
     requiredSignal: 2
-    requiredHoldSeconds: 0.8
+    requiredHoldSeconds: 0.1
   - displayName: "\u58F0\u30FBEater"
     panel: {fileID: 1327171180}
     requiredSignal: 3
-    requiredHoldSeconds: 0.8
+    requiredHoldSeconds: 1
   - displayName: "\u30A2\u30A4\u30C6\u30E0\u8AAC\u660E"
     panel: {fileID: 218187013}
-    requiredSignal: 0
-    requiredHoldSeconds: 0.8
+    requiredSignal: 4
+    requiredHoldSeconds: 7
   - displayName: "\u6E96\u5099\u30FB\u30AB\u30A6\u30F3\u30C8\u30C0\u30A6\u30F3"
     panel: {fileID: 440305288}
-    requiredSignal: 0
-    requiredHoldSeconds: 0.8
+    requiredSignal: 4
+    requiredHoldSeconds: 2
   fadeOverlay: {fileID: 1203388367}
   fadeDuration: 0.35
-  gameplaySceneName: FruitCatch
+  gameplaySceneName: MainGame
   countdownText: {fileID: 968739730}
   countdownLabels:
   - 3
@@ -3969,6 +3973,74 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1793840066
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1793840063}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 00babbe6d5ebaef41a67118ee50bb631, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.PreparationPythonBridge
+  pythonIp: 127.0.0.1
+  previewHttpPort: 8765
+  commandPort: 5006
+  previewFps: 15
+  requestTimeoutSeconds: 2
+  flow: {fileID: 1793840064}
+  cameraSurface: {fileID: 373985860}
+--- !u!114 &1793840067
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1793840063}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 664150c8a3ef596478a8a15a8f50cc7f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.PreparationVoiceDetector
+  flow: {fileID: 1793840064}
+  microphone: {fileID: 1793840068}
+  gainThreshold: 0.1
+--- !u!114 &1793840068
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1793840063}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 657a7a2c8e0b9024b93381eb09875054, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MicrophoneAnalysis
+  deviceName: 
+  sampleRate: 44100
+  updateInterval: 0.05
+  minPitchHz: 70
+  maxPitchHz: 1000
+  yinThreshold: 0.15
+  pitchNoiseGate: 0.01
+--- !u!114 &1793840069
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1793840063}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f1de00f89ecdc1f459cce264ab8f62bd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.FruitCatchTrackerProcess
+  startAutomatically: 1
+  editorPythonCommand: python
+  editorScriptRelativePath: Tools/face_tracker_registered.py
 --- !u!1 &1824712945
 GameObject:
   m_ObjectHideFlags: 0
@@ -4478,7 +4550,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\u9854\u3092\u308F\u304F\u306B\u5408\u308F\u305B\u3066\u306D"
+  m_text: "\u3053\u3053\u306B\u9854\u3092\u5408\u308F\u305B\u3066\u306D"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 349213307ef7d2e4784e24fc50617ccf, type: 2}
   m_sharedMaterial: {fileID: -3528156290726529903, guid: 349213307ef7d2e4784e24fc50617ccf, type: 2}

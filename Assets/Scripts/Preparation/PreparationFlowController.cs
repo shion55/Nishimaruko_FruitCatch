@@ -13,7 +13,8 @@ namespace FruitCatch.Preparation
         Manual,
         HandsRaised,
         FaceAligned,
-        VoiceDetected
+        VoiceDetected,
+        Timed
     }
 
     [Serializable]
@@ -42,7 +43,7 @@ namespace FruitCatch.Preparation
         [SerializeField, Min(0f)] private float fadeDuration = 0.35f;
 
         [Header("ゲーム開始")]
-        [SerializeField] private string gameplaySceneName = "FruitCatch";
+        [SerializeField] private string gameplaySceneName = "MainGame";
         [SerializeField] private TMP_Text countdownText;
         [SerializeField] private string[] countdownLabels = { "3", "2", "1" };
         [SerializeField, Min(0.05f)] private float countdownInterval = 1f;
@@ -64,6 +65,10 @@ namespace FruitCatch.Preparation
 
         public int CurrentStepIndex => currentStepIndex;
         public bool DevelopmentMode => developmentMode;
+        public PreparationSignal CurrentRequiredSignal =>
+            steps.Count > 0 && currentStepIndex < steps.Count
+                ? steps[currentStepIndex].RequiredSignal
+                : PreparationSignal.Manual;
 
         private void Start()
         {
@@ -178,6 +183,8 @@ namespace FruitCatch.Preparation
                     return faceAligned;
                 case PreparationSignal.VoiceDetected:
                     return voiceDetected;
+                case PreparationSignal.Timed:
+                    return true;
                 default:
                     return false;
             }

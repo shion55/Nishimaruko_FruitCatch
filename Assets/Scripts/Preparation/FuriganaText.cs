@@ -13,7 +13,8 @@ namespace FruitCatch.Preparation
     [RequireComponent(typeof(TMP_Text))]
     public sealed class FuriganaText : MonoBehaviour
     {
-        [SerializeField, TextArea(2, 10)] private string annotatedText;
+        [SerializeField, TextArea(2, 10), InspectorName("ふりがな付き文章 [漢字|かんじ]")]
+        private string annotatedText;
         [SerializeField, Range(0.3f, 0.8f)] private float rubyFontScale = 0.5f;
         [SerializeField] private float verticalOffset = 3f;
         [SerializeField] private Color rubyColor = Color.black;

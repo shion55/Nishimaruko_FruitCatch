@@ -235,5 +235,6 @@ public class FallingItemSpawner : MonoBehaviour
     public void SetSpawningEnabled(bool value)
     {
         spawningEnabled = value;
+        isFall = value;
     }
 }

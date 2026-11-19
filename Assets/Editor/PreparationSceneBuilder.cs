@@ -359,12 +359,13 @@ public static class PreparationSceneBuilder
         PreparationSignal[] signals =
         {
             PreparationSignal.HandsRaised,
-            PreparationSignal.Manual,
+            PreparationSignal.Timed,
             PreparationSignal.FaceAligned,
             PreparationSignal.VoiceDetected,
-            PreparationSignal.Manual,
-            PreparationSignal.Manual
+            PreparationSignal.Timed,
+            PreparationSignal.Timed
         };
+        float[] holdSeconds = { 1f, 7f, 0.1f, 1f, 7f, 2f };
 
         for (int i = 0; i < panels.Count; i++)
         {
@@ -372,7 +373,7 @@ public static class PreparationSceneBuilder
             step.FindPropertyRelative("displayName").stringValue = names[i];
             step.FindPropertyRelative("panel").objectReferenceValue = panels[i];
             step.FindPropertyRelative("requiredSignal").enumValueIndex = (int)signals[i];
-            step.FindPropertyRelative("requiredHoldSeconds").floatValue = 0.8f;
+            step.FindPropertyRelative("requiredHoldSeconds").floatValue = holdSeconds[i];
         }
 
         serialized.FindProperty("fadeOverlay").objectReferenceValue = fadeOverlay;

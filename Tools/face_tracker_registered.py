@@ -47,6 +47,10 @@ PREVIEW_FPS = 15  # Unity側は約12〜15fpsのプレビュー（ゲーム中の
 JPEG_QUALITY = 73
 SHOW_DEBUG_WINDOW = False  # デバッグが必要な場合のみTrueにする
 
+# ====== 両手上げ判定 ======
+HAND_RAISE_SHOULDER_MARGIN = 0.03  # 手首が肩より画面高の3%以上上
+MIN_POSE_VISIBILITY = 0.55
+
 # ====== 位置合わせ・登録 ======
 HOLD_SECONDS = 3.0
 CENTER_TOLERANCE_X = 0.12  # 元画像の中心から±12%
@@ -64,11 +68,14 @@ MAX_FACE_PROFILES = 6
 MODEL_DIR = Path(__file__).resolve().parent / "face_models"
 LANDMARKER_PATH = MODEL_DIR / "face_landmarker.task"
 SFACE_PATH = MODEL_DIR / "face_recognition_sface_2021dec.onnx"
+POSE_PATH = MODEL_DIR / "pose_landmarker_lite.task"
 MODEL_URLS = {
     LANDMARKER_PATH:
         "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
     SFACE_PATH:
         "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx",
+    POSE_PATH:
+        "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
 }
 
 
@@ -121,18 +128,21 @@ class PreviewBuffer:
         self.progress = 0.0
         self.hint = "WAITING"
         self.registered = False
+        self.hands_raised = False
 
-    def update(self, jpeg: bytes | None, progress: float, hint: str, registered: bool) -> None:
+    def update(self, jpeg: bytes | None, progress: float, hint: str,
+               registered: bool, hands_raised: bool) -> None:
         with self.lock:
             if jpeg is not None:
                 self.jpeg = jpeg
             self.progress = progress
             self.hint = hint
             self.registered = registered
+            self.hands_raised = hands_raised
 
-    def snapshot(self) -> tuple[bytes | None, float, str, bool]:
+    def snapshot(self) -> tuple[bytes | None, float, str, bool, bool]:
         with self.lock:
-            return self.jpeg, self.progress, self.hint, self.registered
+            return self.jpeg, self.progress, self.hint, self.registered, self.hands_raised
 
 
 def make_preview_handler(shared: PreviewBuffer):
@@ -142,7 +152,7 @@ def make_preview_handler(shared: PreviewBuffer):
                 self.send_error(404)
                 return
 
-            jpeg, progress, hint, registered = shared.snapshot()
+            jpeg, progress, hint, registered, hands_raised = shared.snapshot()
             if jpeg is None:
                 self.send_response(503)
                 self.send_header("Content-Length", "0")
@@ -156,6 +166,7 @@ def make_preview_handler(shared: PreviewBuffer):
             self.send_header("X-Progress", f"{progress:.3f}")
             self.send_header("X-Hint", hint)
             self.send_header("X-Registered", "1" if registered else "0")
+            self.send_header("X-Hands-Raised", "1" if hands_raised else "0")
             self.end_headers()
             try:
                 self.wfile.write(jpeg)
@@ -289,6 +300,27 @@ def check_alignment(face: Face, frame_width: int, frame_height: int) -> str:
     return "HOLD"
 
 
+def has_raised_both_hands(pose_landmarks: list) -> bool:
+    """画面内の誰か1人が両手首を両肩より上に上げているかを返す。"""
+    for points in pose_landmarks:
+        if len(points) <= 16:
+            continue
+        left_shoulder, right_shoulder = points[11], points[12]
+        left_wrist, right_wrist = points[15], points[16]
+        visible = min(
+            getattr(left_shoulder, "visibility", 1.0),
+            getattr(right_shoulder, "visibility", 1.0),
+            getattr(left_wrist, "visibility", 1.0),
+            getattr(right_wrist, "visibility", 1.0),
+        )
+        if visible < MIN_POSE_VISIBILITY:
+            continue
+        if (left_wrist.y < left_shoulder.y - HAND_RAISE_SHOULDER_MARGIN and
+                right_wrist.y < right_shoulder.y - HAND_RAISE_SHOULDER_MARGIN):
+            return True
+    return False
+
+
 def complete_registration(
     state: TrackingState,
     face: Face,
@@ -413,6 +445,14 @@ def run() -> None:
         min_face_presence_confidence=0.5,
         min_tracking_confidence=0.5,
     )
+    pose_options = mp.tasks.vision.PoseLandmarkerOptions(
+        base_options=mp.tasks.BaseOptions(model_asset_path=str(POSE_PATH)),
+        running_mode=mp.tasks.vision.RunningMode.VIDEO,
+        num_poses=4,
+        min_pose_detection_confidence=0.5,
+        min_pose_presence_confidence=0.5,
+        min_tracking_confidence=0.5,
+    )
 
     cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_DSHOW)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
@@ -442,7 +482,8 @@ def run() -> None:
         print(f"Unity command UDP: {PYTHON_COMMAND_PORT}; tracking X UDP: {UNITY_POSITION_PORT}; status UDP: {UNITY_STATUS_PORT}")
         print("登録待ち。Unityの登録画面から AUTO コマンドを送信してください。")
 
-        with mp.tasks.vision.FaceLandmarker.create_from_options(options) as detector:
+        with (mp.tasks.vision.FaceLandmarker.create_from_options(options) as detector,
+              mp.tasks.vision.PoseLandmarker.create_from_options(pose_options) as pose_detector):
             while True:
                 read_commands(command_sock, state, status_sock)
                 ok, frame = cap.read()
@@ -457,7 +498,9 @@ def run() -> None:
                 timestamp_ms = max(int(time.monotonic() * 1000), last_timestamp_ms + 1)
                 last_timestamp_ms = timestamp_ms
                 result = detector.detect_for_video(mp_image, timestamp_ms)
+                pose_result = pose_detector.detect_for_video(mp_image, timestamp_ms)
                 faces = collect_faces(result.face_landmarks, frame.shape[1], frame.shape[0])
+                hands_raised = has_raised_both_hands(pose_result.pose_landmarks)
 
                 selected = None
                 score = 0.0
@@ -490,7 +533,7 @@ def run() -> None:
                     success, encoded = cv2.imencode(".jpg", frame,
                                                     [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
                     shared.update(encoded.tobytes() if success else None,
-                                  state.progress, state.hint, state.active)
+                                  state.progress, state.hint, state.active, hands_raised)
                     last_preview_at = now
 
                 if SHOW_DEBUG_WINDOW:

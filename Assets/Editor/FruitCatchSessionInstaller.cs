@@ -10,7 +10,7 @@ using UnityEngine.UI;
 
 public static class FruitCatchSessionInstaller
 {
-    private const string GameScenePath = "Assets/Scenes/FruitCatch.unity";
+    private const string GameScenePath = "Assets/Scenes/MainGame.unity";
     private const string PreparationScenePath = "Assets/Scenes/Preparation.unity";
     private const string DynamicFontPath = "Assets/Font/MochiyPopPOne-Regular SDF-Dynamic.asset";
 
@@ -199,11 +199,14 @@ public static class FruitCatchSessionInstaller
 
         text.font = font;
         FuriganaText furigana = target.GetComponent<FuriganaText>();
+        bool needsInitialText = furigana == null;
         if (furigana == null)
             furigana = target.gameObject.AddComponent<FuriganaText>();
 
         SerializedObject serialized = new SerializedObject(furigana);
-        serialized.FindProperty("annotatedText").stringValue = annotated;
+        SerializedProperty annotatedProperty = serialized.FindProperty("annotatedText");
+        if (needsInitialText || string.IsNullOrWhiteSpace(annotatedProperty.stringValue))
+            annotatedProperty.stringValue = annotated;
         serialized.FindProperty("rubyFontScale").floatValue = 0.5f;
         serialized.FindProperty("rubyColor").colorValue = text.color;
         serialized.ApplyModifiedPropertiesWithoutUndo();

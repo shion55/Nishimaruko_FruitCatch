@@ -9,7 +9,7 @@ EditorBuildSettings:
     path: Assets/Scenes/Preparation.unity
     guid: 754368d4d7942f24aa3e49cef7f4377f
   - enabled: 1
-    path: Assets/Scenes/FruitCatch.unity
+    path: Assets/Scenes/MainGame.unity
     guid: 8c9cfa26abfee488c85f1582747f6a02
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
