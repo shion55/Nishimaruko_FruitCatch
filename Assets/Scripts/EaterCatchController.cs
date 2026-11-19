@@ -5,6 +5,8 @@ public class EaterCatchController : MonoBehaviour
     [SerializeField] private MicrophoneAnalysis microphone;
     [SerializeField] private GameManager gameManager;
     [SerializeField] private FallingItemSpawner fallingItemSpawner;
+    [SerializeField] private CatchEffectPlayer catchEffectPlayer;
+    [SerializeField] private ScorePopup scorePopup;
     [SerializeField] private float maxScale = 1.8f;
     [SerializeField] private float maxGain = 0.1f;
     [SerializeField] private float stiffness = 100f;
@@ -112,10 +114,25 @@ public class EaterCatchController : MonoBehaviour
 
         int score = item.ScoreDelta;
 
+        // 同じアイテムを複数回数えない
         if (!item.TryConsume())
             return;
 
-        gameManager.AddScore(score);
+        if (item.Category == ItemCategory.Fruit)
+        {
+            if (catchEffectPlayer != null)
+                catchEffectPlayer.PlayFruitEffect();
+        }
+        else if (item.Category == ItemCategory.Bug)
+        {
+            if (catchEffectPlayer != null)
+                catchEffectPlayer.PlayBugEffect();
+        }
+
+        if (scorePopup != null)
+            scorePopup.ShowScore(item.ScoreDelta);
+
+        gameManager.RegisterCatch(item.Category, score);
 
         if (isFeverItem)
         {

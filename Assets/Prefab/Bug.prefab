@@ -83,9 +83,9 @@ SpriteRenderer:
   m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 0
+  m_SortingOrder: 2
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 21300000, guid: fddea71d3367dd641a4508fb53115fac, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 84a1d33793de1e84cb2e11be58df1f66, type: 3}
   m_Color: {r: 0.4811321, g: 0.4811321, b: 0.4811321, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -121,6 +121,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b8317dbc4f190d0448d98aadff1c2354, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CatchableItem
+  category: 1
+  itemId: apple
   scoreDelta: -5
 --- !u!61 &6678847902150819037
 BoxCollider2D:
@@ -160,7 +162,7 @@ BoxCollider2D:
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 1, y: 1}
+    oldSize: {x: 2, y: 2}
     newSize: {x: 1, y: 1}
     adaptiveTilingThreshold: 0.5
     drawMode: 0

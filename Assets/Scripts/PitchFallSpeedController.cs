@@ -10,50 +10,34 @@ public class PitchFallSpeedController : MonoBehaviour
     [SerializeField] private float minPitchHz = 120f;
     [SerializeField] private float maxPitchHz = 600f;
 
-    [Header("Fruit")]
-    [SerializeField] private float fruitMaxSpeed = 4f;
+    [Header("Fall Speed")]
+    [SerializeField] private float maxFallSpeed = 4f;
 
     [Range(0f, 1f)]
-    [SerializeField] private float fruitMinMultiplier = 0.25f;
+    [SerializeField] private float minSpeedMultiplier = 0.25f;
 
-    [Header("Bug")]
-    [SerializeField] private float bugMaxSpeed = 4f;
-
-    [Range(0f, 1f)]
-    [SerializeField] private float bugMinMultiplier = 0.25f;
+    [Tooltip("ON: 高い声ほど速い / OFF: 高い声ほど遅い")]
+    [SerializeField] private bool highPitchFaster = false;
 
     [Header("Smoothing")]
     [SerializeField] private float smoothTime = 0.15f;
     [SerializeField] private float pitchHoldTime = 0.2f;
 
-    private float currentFruit = 1f;
-    private float currentBug = 1f;
-
-    private float targetFruit = 1f;
-    private float targetBug = 1f;
-
+    private float currentMultiplier = 1f;
+    private float targetMultiplier = 1f;
     private float lastPitchTime = -Mathf.Infinity;
 
     void OnEnable()
     {
-        currentFruit = 1f;
-        currentBug = 1f;
-        targetFruit = 1f;
-        targetBug = 1f;
+        currentMultiplier = 1f;
+        targetMultiplier = 1f;
+        lastPitchTime = -Mathf.Infinity;
 
-        FallingObject.FruitMultiplier = 1f;
-        FallingObject.BugMultiplier = 1f;
+        ApplySpeed();
     }
 
     void Update()
     {
-        // それぞれの最高速度
-        FallingObject.FruitMaxSpeed =
-            Mathf.Max(0f, fruitMaxSpeed);
-
-        FallingObject.BugMaxSpeed =
-            Mathf.Max(0f, bugMaxSpeed);
-
         float pitch = microphone != null
             ? microphone.PitchHz
             : 0f;
@@ -68,25 +52,28 @@ public class PitchFallSpeedController : MonoBehaviour
                 pitch
             );
 
-            // 高い声ほどフルーツが遅くなる
-            targetFruit = Mathf.Lerp(
-                1f,
-                fruitMinMultiplier,
-                normalizedPitch
-            );
-
-            // 低い声ほど虫が遅くなる
-            targetBug = Mathf.Lerp(
-                bugMinMultiplier,
-                1f,
-                normalizedPitch
-            );
+            // ONなら高音ほど速い、OFFなら高音ほど遅い
+            if (highPitchFaster)
+            {
+                targetMultiplier = Mathf.Lerp(
+                    minSpeedMultiplier,
+                    1f,
+                    normalizedPitch
+                );
+            }
+            else
+            {
+                targetMultiplier = Mathf.Lerp(
+                    1f,
+                    minSpeedMultiplier,
+                    normalizedPitch
+                );
+            }
         }
         else if (Time.time - lastPitchTime > pitchHoldTime)
         {
             // 声がなくなったら通常速度へ
-            targetFruit = 1f;
-            targetBug = 1f;
+            targetMultiplier = 1f;
         }
 
         // 滑らかに速度を変化
@@ -95,22 +82,32 @@ public class PitchFallSpeedController : MonoBehaviour
             Mathf.Max(0.001f, smoothTime)
         );
 
-        currentFruit = Mathf.Lerp(
-            currentFruit, targetFruit, t
+        currentMultiplier = Mathf.Lerp(
+            currentMultiplier,
+            targetMultiplier,
+            t
         );
 
-        currentBug = Mathf.Lerp(
-            currentBug, targetBug, t
-        );
+        ApplySpeed();
+    }
 
-        FallingObject.FruitMultiplier = currentFruit;
-        FallingObject.BugMultiplier = currentBug;
+    private void ApplySpeed()
+    {
+        float maxSpeed = Mathf.Max(0f, maxFallSpeed);
+
+        // すべての落下物に同じ設定を適用
+        FallingObject.FruitMaxSpeed = maxSpeed;
+        FallingObject.BugMaxSpeed = maxSpeed;
+
+        FallingObject.FruitMultiplier = currentMultiplier;
+        FallingObject.BugMultiplier = currentMultiplier;
     }
 
     void OnDisable()
     {
         FallingObject.FruitMultiplier = 1f;
         FallingObject.BugMultiplier = 1f;
+
         FallingObject.FruitMaxSpeed = float.PositiveInfinity;
         FallingObject.BugMaxSpeed = float.PositiveInfinity;
     }

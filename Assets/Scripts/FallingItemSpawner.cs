@@ -8,6 +8,11 @@ public class FallingItemSpawner : MonoBehaviour
     [SerializeField] private GameObject bugPrefab;
     [SerializeField] private GameObject feverItemPrefab;
 
+    [Header("Item Parents")]
+    [SerializeField] private Transform fruitParent;
+    [SerializeField] private Transform bugParent;
+    [SerializeField] private Transform feverItemParent;
+
     [Header("Normal")]
     [Range(0f, 1f)]
     [SerializeField] private float bugProbability = 0.2f;
@@ -52,8 +57,10 @@ public class FallingItemSpawner : MonoBehaviour
     private float feverItemCooldownTimer;
 
     private bool isRush;
+    private bool spawningEnabled = true;
 
     public bool IsFever => feverTimer > 0f;
+    public bool SpawningEnabled => spawningEnabled;
 
     private void Start()
     {
@@ -63,6 +70,9 @@ public class FallingItemSpawner : MonoBehaviour
 
     private void Update()
     {
+        if (!spawningEnabled)
+            return;
+
         float dt = Time.deltaTime;
 
         feverItemCooldownTimer = Mathf.Max(
@@ -79,7 +89,7 @@ public class FallingItemSpawner : MonoBehaviour
             {
                 for (int i = 0; i < feverFruitsPerSpawn; i++)
                 {
-                    SpawnItem(fruitPrefab);
+                    SpawnItem(fruitPrefab, fruitParent);
                 }
 
                 spawnTimer = Mathf.Max(
@@ -149,7 +159,7 @@ public class FallingItemSpawner : MonoBehaviour
             feverItemCooldownTimer <= 0f &&
             Random.value < feverItemProbability)
         {
-            SpawnItem(feverItemPrefab);
+            SpawnItem(feverItemPrefab, feverItemParent);
 
             feverItemCooldownTimer =
                 Mathf.Max(0f, feverItemCooldown);
@@ -159,10 +169,17 @@ public class FallingItemSpawner : MonoBehaviour
 
         bool isBug = Random.value < bugProbability;
 
-        SpawnItem(isBug ? bugPrefab : fruitPrefab);
+        if (isBug)
+        {
+            SpawnItem(bugPrefab, bugParent);
+        }
+        else
+        {
+            SpawnItem(fruitPrefab, fruitParent);
+        }
     }
 
-    private void SpawnItem(GameObject prefab)
+    private void SpawnItem(GameObject prefab, Transform parent)
     {
         if (mainCamera == null || prefab == null)
             return;
@@ -184,10 +201,12 @@ public class FallingItemSpawner : MonoBehaviour
             mainCamera.transform.position +
             new Vector3(x, y, 10f);
 
+        // 指定された親の下に生成
         GameObject item = Instantiate(
             prefab,
             spawnPosition,
-            Quaternion.identity
+            Quaternion.identity,
+            parent
         );
 
         FallingObject falling =
@@ -208,5 +227,10 @@ public class FallingItemSpawner : MonoBehaviour
         spawnTimer = 0f;
 
         Debug.Log("FEVER START!");
+    }
+
+    public void SetSpawningEnabled(bool value)
+    {
+        spawningEnabled = value;
     }
 }

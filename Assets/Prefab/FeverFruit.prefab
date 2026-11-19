@@ -32,8 +32,8 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: -0.982, y: -1.0552, z: 0}
-  m_LocalScale: {x: 0.4603984, y: 0.44467217, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_LocalScale: {x: 0.84, y: 0.84, z: 0.84}
+  m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -63,7 +63,7 @@ SpriteRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: a97c105638bdf8b4a8650670310a4cd3, type: 2}
+  - {fileID: 2100000, guid: c5eac3d04258ffe4db869183c1d75bd9, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -84,10 +84,10 @@ SpriteRenderer:
   m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
-  m_SortingOrder: 0
+  m_SortingOrder: 2
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 7161268180630708012, guid: 2f785e703779d934ea26964844959c6a, type: 3}
-  m_Color: {r: 1, g: 0.06132078, b: 0.28572205, a: 1}
+  m_Sprite: {fileID: 21300000, guid: 703087974ea80ec4d89a10ff9b81055f, type: 3}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
@@ -108,6 +108,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c2d80e5d254a1bd4bb759fe0ef355212, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FallingObject
+  itemType: 0
   fallSpeed: 3
 --- !u!114 &-2382431426951390967
 MonoBehaviour:
@@ -121,6 +122,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b8317dbc4f190d0448d98aadff1c2354, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CatchableItem
+  category: 0
+  itemId: apple
   scoreDelta: 10
 --- !u!58 &1788586296516083932
 CircleCollider2D:
