@@ -26,6 +26,7 @@ public class FaceMovementController : MonoBehaviour
     private float lastReceivedTime;
     private bool hasReceivedFace;
 
+    public bool movefacetoggle = true;
     void OnEnable()
     {
         try
@@ -51,7 +52,7 @@ public class FaceMovementController : MonoBehaviour
 
     void Update()
     {
-        if (receiver == null || mainCamera == null)
+        if (receiver == null || mainCamera == null || movefacetoggle)
             return;
 
         // ÅV‚ÌŠçˆÊ’u‚ğæ“¾

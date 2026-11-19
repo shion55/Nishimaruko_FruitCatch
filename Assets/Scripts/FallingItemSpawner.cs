@@ -62,6 +62,7 @@ public class FallingItemSpawner : MonoBehaviour
     public bool IsFever => feverTimer > 0f;
     public bool SpawningEnabled => spawningEnabled;
 
+    public bool isFall;
     private void Start()
     {
         mainCamera = Camera.main;
@@ -74,6 +75,8 @@ public class FallingItemSpawner : MonoBehaviour
             return;
 
         float dt = Time.deltaTime;
+        if (!isFall) 
+            return;
 
         feverItemCooldownTimer = Mathf.Max(
             0f, feverItemCooldownTimer - dt
