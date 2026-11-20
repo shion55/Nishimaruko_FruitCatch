@@ -1,4 +1,4 @@
-
+ï»¿
 using UnityEngine;
 using System.Net;
 using System.Net.Sockets;
@@ -7,7 +7,7 @@ using System.Globalization;
 
 public class FaceMovementController : MonoBehaviour
 {
-    //python‚©‚çŠç‚ÌˆÊ’u‚ğOSC‚Åó‚¯”½‰f‚³‚¹‚é
+    //pythonã‹ã‚‰é¡”ã®ä½ç½®ã‚’OSCã§å—ã‘åæ˜ ã•ã›ã‚‹
     [SerializeField] private int port = 5005;
     [SerializeField] private float smoothTime = 0.12f;
 
@@ -40,7 +40,7 @@ public class FaceMovementController : MonoBehaviour
         }
         catch (SocketException e)
         {
-            Debug.LogError("UDPóMƒGƒ‰[: " + e.Message);
+            Debug.LogError("UDPå—ä¿¡ã‚¨ãƒ©ãƒ¼: " + e.Message);
             enabled = false;
         }
     }
@@ -55,7 +55,7 @@ public class FaceMovementController : MonoBehaviour
         if (receiver == null || mainCamera == null || movefacetoggle)
             return;
 
-        // ÅV‚ÌŠçˆÊ’u‚ğæ“¾
+        // æœ€æ–°ã®é¡”ä½ç½®ã‚’å–å¾—
         while (receiver.Available > 0)
         {
             byte[] data = receiver.Receive(
@@ -77,7 +77,7 @@ public class FaceMovementController : MonoBehaviour
             }
         }
 
-        // Šç‚ªŒ©‚Â‚©‚ç‚È‚­‚È‚Á‚½‚ç’â~
+        // é¡”ãŒè¦‹ã¤ã‹ã‚‰ãªããªã£ãŸã‚‰åœæ­¢
         if (!hasReceivedFace ||
             Time.time - lastReceivedTime > trackingTimeout)
             return;

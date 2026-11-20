@@ -1,4 +1,4 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 public class MicrophoneMouthController : MonoBehaviour
 {
@@ -21,7 +21,7 @@ public class MicrophoneMouthController : MonoBehaviour
 
         if (Microphone.devices.Length == 0)
         {
-            Debug.LogError("ƒ}ƒCƒN‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñ");
+            Debug.LogError("ãƒã‚¤ã‚¯ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“");
             return;
         }
 

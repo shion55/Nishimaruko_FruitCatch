@@ -1,4 +1,4 @@
-
+ï»¿
 using System;
 using System.IO;
 using TMPro;
@@ -13,7 +13,7 @@ public class SystemFontLoader : MonoBehaviour
     {
         string[] paths = Font.GetPathsToOSFonts();
 
-        Debug.Log($"OSƒtƒHƒ“ƒgƒtƒ@ƒCƒ‹”: {paths.Length}");
+        Debug.Log($"OSãƒ•ã‚©ãƒ³ãƒˆãƒ•ã‚¡ã‚¤ãƒ«æ•°: {paths.Length}");
 
         FontEngine.InitializeFontEngine();
 
@@ -21,12 +21,12 @@ public class SystemFontLoader : MonoBehaviour
         {
             try
             {
-                // ƒtƒHƒ“ƒgƒtƒ@ƒCƒ‹‚ğ’¼Ú“Ç‚İ‚Ş
+                // ãƒ•ã‚©ãƒ³ãƒˆãƒ•ã‚¡ã‚¤ãƒ«ã‚’ç›´æ¥èª­ã¿è¾¼ã‚€
                 if (FontEngine.LoadFontFace(path, 90, 0)
                     != FontEngineError.Success)
                     continue;
 
-                // TTC‚Í•¡”‚Ì‘‘Ì‚ğŠÜ‚Ş‚½‚ßA‚»‚ê‚¼‚êŠm”F
+                // TTCã¯è¤‡æ•°ã®æ›¸ä½“ã‚’å«ã‚€ãŸã‚ã€ãã‚Œãã‚Œç¢ºèª
                 int faceCount = 1;
 
                 if (Path.GetExtension(path).Equals(
@@ -43,13 +43,13 @@ public class SystemFontLoader : MonoBehaviour
                         != FontEngineError.Success)
                         continue;
 
-                    // ÀÛ‚ÌƒOƒŠƒt‚Ì—L–³‚ğŠm”F
-                    if (!FontEngine.TryGetGlyphIndex('‚ ', out _) ||
-                        !FontEngine.TryGetGlyphIndex('ƒC', out _) ||
-                        !FontEngine.TryGetGlyphIndex('Š¿', out _))
+                    // å®Ÿéš›ã®ã‚°ãƒªãƒ•ã®æœ‰ç„¡ã‚’ç¢ºèª
+                    if (!FontEngine.TryGetGlyphIndex('ã‚', out _) ||
+                        !FontEngine.TryGetGlyphIndex('ã‚¤', out _) ||
+                        !FontEngine.TryGetGlyphIndex('æ¼¢', out _))
                         continue;
 
-                    // ƒtƒ@ƒCƒ‹ƒpƒX‚©‚ç’¼ÚTMP Font Asset‚ğ¶¬
+                    // ãƒ•ã‚¡ã‚¤ãƒ«ãƒ‘ã‚¹ã‹ã‚‰ç›´æ¥TMP Font Assetã‚’ç”Ÿæˆ
                     TMP_FontAsset asset =
                         TMP_FontAsset.CreateFontAsset(
                             path,
@@ -66,7 +66,7 @@ public class SystemFontLoader : MonoBehaviour
 
                     asset.isMultiAtlasTexturesEnabled = true;
 
-                    if (!asset.TryAddCharacters("‚ ƒCŠ¿"))
+                    if (!asset.TryAddCharacters("ã‚ã‚¤æ¼¢"))
                     {
                         Destroy(asset);
                         continue;
@@ -76,7 +76,7 @@ public class SystemFontLoader : MonoBehaviour
                     TMP_Settings.fallbackFontAssets.Add(systemFont);
 
                     Debug.Log(
-                        $"“ú–{ŒêƒtƒHƒ“ƒg“Ç‚İ‚İ¬Œ÷: {path} " +
+                        $"æ—¥æœ¬èªãƒ•ã‚©ãƒ³ãƒˆèª­ã¿è¾¼ã¿æˆåŠŸ: {path} " +
                         $"(face: {faceIndex})"
                     );
 
@@ -86,13 +86,13 @@ public class SystemFontLoader : MonoBehaviour
             catch (Exception e)
             {
                 Debug.LogWarning(
-                    $"ƒtƒHƒ“ƒg“Ç‚İ‚İ¸”s: {path} / {e.Message}"
+                    $"ãƒ•ã‚©ãƒ³ãƒˆèª­ã¿è¾¼ã¿å¤±æ•—: {path} / {e.Message}"
                 );
             }
         }
 
         Debug.LogWarning(
-            "“ú–{ŒêƒtƒHƒ“ƒg‚ÌTMP¶¬‚É¸”s‚µ‚Ü‚µ‚½B"
+            "æ—¥æœ¬èªãƒ•ã‚©ãƒ³ãƒˆã®TMPç”Ÿæˆã«å¤±æ•—ã—ã¾ã—ãŸã€‚"
         );
     }
 

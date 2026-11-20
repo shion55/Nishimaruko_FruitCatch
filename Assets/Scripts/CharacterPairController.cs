@@ -1,4 +1,4 @@
-
+ï»¿
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -38,7 +38,7 @@ public class CharacterPairController : MonoBehaviour
 
         position.x += input * moveSpeed * Time.deltaTime;
 
-        // ‰æ–ÊŠO‚Éo‚È‚¢‚æ‚¤‚É‚·‚é
+        // ç”»é¢å¤–ã«å‡ºãªã„ã‚ˆã†ã«ã™ã‚‹
         if (mainCamera != null)
         {
             float halfWidth =
