@@ -4,9 +4,10 @@
 
 ## 開発環境
 
-- Unity `6000.4.2f1`
-- Universal Render Pipeline 17.4.0
-- Input System 1.19.0
+- Unity `6000.6.4f1`
+- Universal Render Pipeline 17.6.0
+- Input System 1.20.0
+- Unity Pipeline 1.0.1（Unity CLIからEditorを操作・調査）
 - Git
 
 共同開発では、必ず同じUnityバージョンを使用してください。異なるバージョンでSceneやPrefabを保存すると、大量の差分や互換性問題が発生することがあります。
@@ -15,7 +16,7 @@
 
 1. このリポジトリをcloneします。
 2. Unity Hubでリポジトリのルートフォルダーを追加します。
-3. Unity `6000.4.2f1`で開きます。
+3. Unity `6000.6.4f1`で開きます。
 4. 最初のimportが完了するまで待ちます。
 5. `Assets/Scenes/Preparation.unity`から再生します。
 
