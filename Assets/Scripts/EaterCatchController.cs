@@ -154,7 +154,15 @@ public class EaterCatchController : MonoBehaviour
             CatchableItem item = other.GetComponentInParent<CatchableItem>();
             if (item != null && item.Definition != null && !item.IsConsumed &&
                 item.Category == ItemCategory.Fruit)
-                item.GetComponent<FallingObject>()?.TryBounce(bounceSpeed);
+            {
+                FallingObject falling = item.GetComponent<FallingObject>();
+                if (falling != null && falling.TryBounce(bounceSpeed) && catchEffectPlayer != null)
+                {
+                    Vector2 contact = sensor.ClosestPoint(other.bounds.center);
+                    catchEffectPlayer.PlayBounceEffect(
+                        new Vector3(contact.x, contact.y, item.transform.position.z), sensor == leftBounceSensor);
+                }
+            }
         }
     }
 

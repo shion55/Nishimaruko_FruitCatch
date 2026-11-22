@@ -8,6 +8,11 @@ public class CatchEffectPlayer : MonoBehaviour
     [SerializeField] private GameObject fruitEffectPrefab;
     [SerializeField] private GameObject bugEffectPrefab;
 
+    [Header("Bounce Particles")]
+    // 色・大きさ・上向きの広がり・寿命は子のParticleSystemで調整する。
+    [SerializeField] private ParticleSystem bounceParticles;
+    [SerializeField, Min(1)] private int bounceParticleCount = 8; // 弾き上げ1回あたりの粒数。
+
     [Header("Position")]
     [SerializeField] private Transform headPoint;
     [SerializeField] private Transform effectParent;
@@ -36,6 +41,20 @@ public class CatchEffectPlayer : MonoBehaviour
     public void PlayBugEffect()
     {
         SpawnEffects(bugEffectPrefab);
+    }
+
+    public void PlayBounceEffect(Vector3 worldPosition, bool isLeft)
+    {
+        if (!isActiveAndEnabled || bounceParticles == null)
+            return;
+
+        // World空間で再利用し、移動や次の弾き上げで先の粒を動かしたり消したりしない。
+        bounceParticles.transform.position = worldPosition;
+        // Prefabは右上へ放出。左側だけY軸で180度回し、放出方向のXを反転する。
+        bounceParticles.transform.rotation = Quaternion.Euler(0f, isLeft ? 180f : 0f, 0f);
+        if (!bounceParticles.isPlaying)
+            bounceParticles.Play();
+        bounceParticles.Emit(Mathf.Max(1, bounceParticleCount));
     }
 
     private void SpawnEffects(GameObject prefab)
@@ -187,5 +206,7 @@ public class CatchEffectPlayer : MonoBehaviour
     private void OnDisable()
     {
         ClearEffects();
+        if (bounceParticles != null)
+            bounceParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
     }
 }

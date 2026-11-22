@@ -51,9 +51,21 @@ public static class FruitBounceVerification
             mouth.direction = CapsuleDirection2D.Horizontal;
             mouth.size = new Vector2(0.6f, 0.2f);
             var eater = mouthObject.AddComponent<EaterCatchController>();
+            var effects = mouthObject.AddComponent<CatchEffectPlayer>();
+            var particleObject = UnityEngine.Object.Instantiate(
+                AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefab/Effect_bounce.prefab"), mouthObject.transform);
+            var particles = particleObject.GetComponent<ParticleSystem>();
+            particles.useAutoRandomSeed = false;
+            particles.randomSeed = 0x12345678;
+            var effectSettings = new SerializedObject(effects);
+            effectSettings.FindProperty("bounceParticles").objectReferenceValue = particles;
+            effectSettings.FindProperty("fruitEffectPrefab").objectReferenceValue =
+                AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefab/Effect_good.prefab");
+            effectSettings.ApplyModifiedPropertiesWithoutUndo();
             var eaterSettings = new SerializedObject(eater);
             eaterSettings.FindProperty("microphone").objectReferenceValue = microphone;
             eaterSettings.FindProperty("gameManager").objectReferenceValue = manager;
+            eaterSettings.FindProperty("catchEffectPlayer").objectReferenceValue = effects;
             eaterSettings.FindProperty("maxScale").floatValue = 1.5f;
             var openSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Image/honbansozai/mochi-shomenopen.png");
             var closedSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Image/honbansozai/mochi-shomen.png");
@@ -91,7 +103,7 @@ public static class FruitBounceVerification
                     Mathf.Abs(mouth.bounds.size.x - 0.6f) < 0.01f &&
                     Mathf.Abs(mouth.bounds.size.y - 0.2f) < 0.001f,
                 "閉口時の幅と高さが不正です。");
-            checks.Add("元の一枚絵を開閉で切り替え、口幅0.6～0.9・高さ0.2と左右センサーの追従を保つ");
+            checks.Add("一枚絵を開閉で切り替え、口幅0.6～0.9・高さ0.2と左右センサーの追従を保つ");
             eaterSettings.Update();
             eaterSettings.FindProperty("stiffness").floatValue = 0f;
             eaterSettings.ApplyModifiedPropertiesWithoutUndo();
@@ -115,7 +127,7 @@ public static class FruitBounceVerification
             var closedSide = CreateItem(1.2f, 1.6f);
             await Advance(0.7f);
             Require(closed != null && closedSide != null && !closed.IsRising && !closedSide.IsRising &&
-                    manager.Score == 0 && notifications == 0,
+                    manager.Score == 0 && notifications == 0 && particles.particleCount == 0,
                 "閉口中に取得か弾き上げが発生しました。");
             UnityEngine.Object.DestroyImmediate(closed.gameObject);
             UnityEngine.Object.DestroyImmediate(closedSide.gameObject);
@@ -138,6 +150,7 @@ public static class FruitBounceVerification
             eater.ItemConsumed -= OnSharedCatch;
             Require(!bouncedBeforeCatch && manager.Score == 20,
                 "口と左右センサーへ同時に重なった果物で、取得が優先されませんでした。");
+            Require(particles.particleCount == 0, "取得時に弾き上げパーティクルが発生しました。");
             checks.Add("口と左右センサーへ同時に触れる果物は、弾き上げず取得を優先する");
 
             foreach (int side in new[] { -1, 1 })
@@ -148,6 +161,17 @@ public static class FruitBounceVerification
                 for (int bounce = 0; bounce < 3; bounce++)
                 {
                     await Until(() => fruit != null && fruit.IsRising, 2f);
+                    Require(particles.particleCount > 0 && particles.particleCount <= 8,
+                        "弾き上げパーティクルが発生しないか、同じ弾き上げで重複発生しました。");
+                    var burst = new ParticleSystem.Particle[particles.main.maxParticles];
+                    int burstCount = particles.GetParticles(burst);
+                    float outwardVelocity = 0f;
+                    for (int i = 0; i < burstCount; i++)
+                    {
+                        Require(Mathf.Abs(burst[i].velocity.z) < 0.001f, "粒が2D平面から外れています。");
+                        outwardVelocity += burst[i].velocity.x * side;
+                    }
+                    Require(outwardVelocity > 0f, "粒が外向きを中心に放出されていません。");
                     Require(notifications == before && fruit.GetComponent<Rigidbody2D>().position.x == originalX,
                         "外側だけの接触で取得されたか、弾き上げで横移動しました。");
                     float speed = fruit.VerticalSpeed;
@@ -163,6 +187,7 @@ public static class FruitBounceVerification
             }
             checks.Add("左右とも真上へ繰り返し弾き、同じ果物を3回救済した後に再取得できる");
             checks.Add("上昇中の再弾き上げを抑え、下降後には回数制限なしで弾き直す");
+            checks.Add("左右とも外向きを中心に1回だけ放出し、取得時には放出しない");
 
             var rising = CreateItem(0f, 0.3f);
             Require(rising.TryBounce(5f), "上昇中の取得確認を開始できません。");
@@ -173,6 +198,7 @@ public static class FruitBounceVerification
             await Advance(0.8f);
             Require(bug != null && !bug.IsRising && manager.BugCount == 0 && notifications == 5,
                 "外側センサーが虫を弾くか、虫を取得しました。");
+            Require(particles.particleCount == 0, "虫の外側接触でパーティクルが発生しました。");
             UnityEngine.Object.DestroyImmediate(bug.gameObject);
             checks.Add("虫は外側センサーでは取得・弾き上げを行わない");
 
@@ -202,6 +228,68 @@ public static class FruitBounceVerification
             var missed = CreateItem(4f, -5.9f);
             await Until(() => missed == null, 2f);
             checks.Add("取りこぼして画面下へ落ちた果物は削除する");
+
+            int systemCount = fixture.GetComponentsInChildren<ParticleSystem>(true).Length;
+            Vector3 emissionPoint = mouthObject.transform.position;
+            for (int i = 0; i < 10; i++) effects.PlayBounceEffect(emissionPoint, i % 2 == 0);
+            Require(particles.particleCount == 80 &&
+                    fixture.GetComponentsInChildren<ParticleSystem>(true).Length == systemCount,
+                "連続再生で先の粒が消えたか、ParticleSystemが増えました。");
+            var alternating = new ParticleSystem.Particle[particles.main.maxParticles];
+            int alternatingCount = particles.GetParticles(alternating);
+            int outwardCount = 0;
+            int inwardCount = 0;
+            for (int i = 0; i < alternatingCount; i++)
+            {
+                int side = (i / 8) % 2 == 0 ? -1 : 1;
+                if (alternating[i].velocity.x * side > 0f) outwardCount++;
+                if (alternating[i].velocity.x * side < 0f) inwardCount++;
+            }
+            Require(outwardCount > inwardCount && inwardCount > 0,
+                "左右の切り替え後に、外向きを主として内向きも少し含む放出になっていません。");
+            effects.PlayFruitEffect();
+            Require(particles.particleCount == 80, "取得演出が弾き上げの粒を消しました。");
+            mouthBody.position += Vector2.right * 4f;
+            Physics2D.SyncTransforms();
+            // 短い演出は描画待ちで寿命を過ぎないよう、粒だけを一定時間ずつ進める。
+            particles.Pause();
+            particles.Simulate(0.02f, false, false, false);
+            var liveParticles = new ParticleSystem.Particle[particles.main.maxParticles];
+            int liveCount = particles.GetParticles(liveParticles);
+            Require(liveCount > 0, "移動後に粒が消えました。");
+            float ascentY = 0f;
+            for (int i = 0; i < liveCount; i++)
+            {
+                Require(Mathf.Abs(liveParticles[i].position.x - emissionPoint.x) < 1f &&
+                        Mathf.Abs(liveParticles[i].position.z - emissionPoint.z) < 0.01f,
+                    "粒がキャラクターに追従したか、2D平面から外れました。");
+                ascentY += liveParticles[i].position.y;
+            }
+            Require(ascentY / liveCount > emissionPoint.y, "放出直後の粒が上へ飛んでいません。");
+            particles.Simulate(0.03f, false, false, false);
+            int beforeDescentCount = particles.GetParticles(liveParticles);
+            float beforeDescentY = 0f;
+            for (int i = 0; i < beforeDescentCount; i++) beforeDescentY += liveParticles[i].position.y;
+            particles.Simulate(0.03f, false, false, false);
+            int afterDescentCount = particles.GetParticles(liveParticles);
+            Require(beforeDescentCount == 80 && afterDescentCount == beforeDescentCount,
+                "重力を確認する前に粒が消えました。");
+            float afterDescentY = 0f;
+            for (int i = 0; i < afterDescentCount; i++) afterDescentY += liveParticles[i].position.y;
+            Require(afterDescentY - beforeDescentY < beforeDescentY - ascentY,
+                "粒の軌道が重力で下へ曲がっていません。");
+            particles.Simulate(0.32f, false, false, false);
+            Require(particles.particleCount == 0, "寿命を過ぎても粒が残るか、自動放出されています。");
+            effects.PlayBounceEffect(emissionPoint, false);
+            Require(particles.particleCount == 8, "寿命後にパーティクルを再利用できません。");
+            effects.enabled = false;
+            Require(particles.particleCount == 0, "無効化時に粒が残ります。");
+            effects.enabled = true;
+            effects.PlayBounceEffect(emissionPoint, true);
+            Require(particles.particleCount == 8, "再有効化後にパーティクルを再生できません。");
+            checks.Add("閉口・虫では放出せず、連続10回と取得演出の併発でも同じParticleSystemを再利用する");
+            checks.Add("粒は斜め上へ素早く飛び、重力で下へ曲がって一瞬で消える。移動には追従しない");
+            checks.Add("無効化時に粒を消し、再有効化後も再生できる");
             return new { passed = checks.Count, checks, score = manager.Score, notifications };
         }
         finally
