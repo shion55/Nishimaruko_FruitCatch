@@ -14,7 +14,6 @@ GameObject:
   - component: {fileID: -2382431426951390967}
   - component: {fileID: 1788586296516083932}
   - component: {fileID: -7243474110563300232}
-  - component: {fileID: 4479958183470976478}
   m_Layer: 0
   m_Name: FeverFruit
   m_TagString: Untagged
@@ -39,7 +38,7 @@ Transform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!212 &5083190054898026128
 SpriteRenderer:
-  serializedVersion: 2
+  serializedVersion: 3
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -96,6 +95,7 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
+  m_BlendShapeWeights: []
 --- !u!114 &6297083907107441392
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -122,9 +122,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b8317dbc4f190d0448d98aadff1c2354, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CatchableItem
-  category: 0
-  itemId: apple
-  scoreDelta: 10
+  definition: {fileID: 11400000, guid: 3ffa5b41be76b4d37b81367368059f73, type: 2}
 --- !u!58 &1788586296516083932
 CircleCollider2D:
   m_ObjectHideFlags: 0
@@ -188,15 +186,3 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 0
---- !u!114 &4479958183470976478
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7009484295860949013}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d833a62af1a998d4d8bc8f425c3813b0, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::FeverItem

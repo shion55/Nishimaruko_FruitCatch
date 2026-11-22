@@ -24,6 +24,8 @@ public class EaterCatchController : MonoBehaviour
 
     private float scaleVelocity = 0f;
 
+    public event System.Action<ItemConsumption> ItemConsumed;
+
     private void Awake()
     {
         if (microphone == null)
@@ -109,7 +111,7 @@ public class EaterCatchController : MonoBehaviour
 
     private void TryCatch(Collider2D other)
     {
-        if (gameManager == null)
+        if (!isActiveAndEnabled || gameManager == null || other == null)
             return;
 
         // 通常は声、マウスデバッグ中は左ボタンを押している間だけ取れる。
@@ -117,37 +119,37 @@ public class EaterCatchController : MonoBehaviour
             return;
 
         CatchableItem item =
-            other.GetComponent<CatchableItem>();
+            other.GetComponentInParent<CatchableItem>();
 
         if (item == null)
             return;
 
-        bool isFeverItem =
-            other.GetComponent<FeverItem>() != null;
-
-        int score = item.ScoreDelta;
-
         // 同じアイテムを複数回数えない
-        if (!item.TryConsume())
+        if (!item.TryConsume(out ItemConsumption consumption))
             return;
 
-        if (item.Category == ItemCategory.Fruit)
+        if (consumption.Category == ItemCategory.Fruit)
         {
             if (catchEffectPlayer != null)
                 catchEffectPlayer.PlayFruitEffect();
         }
-        else if (item.Category == ItemCategory.Bug)
+        else if (consumption.Category == ItemCategory.Bug)
         {
             if (catchEffectPlayer != null)
                 catchEffectPlayer.PlayBugEffect();
         }
 
         if (scorePopup != null)
-            scorePopup.ShowScore(item.ScoreDelta);
+            scorePopup.ShowScore(consumption.ScoreDelta);
 
-        gameManager.RegisterCatch(item.Category, score);
+        gameManager.RegisterCatch(consumption.Category, consumption.ScoreDelta);
+        ApplyItemEffect(consumption.Effect);
+        ItemConsumed?.Invoke(consumption);
+    }
 
-        if (isFeverItem)
+    private void ApplyItemEffect(ItemEffectType effect)
+    {
+        if (effect == ItemEffectType.Fever)
         {
             if (fallingItemSpawner != null)
                 fallingItemSpawner.StartFever();

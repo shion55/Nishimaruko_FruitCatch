@@ -25,17 +25,23 @@ public class FallingObject : MonoBehaviour
     public static float BugMaxSpeed = 4f;
 
     private Camera mainCamera;
+    private CatchableItem catchableItem;
 
     void Start()
     {
         mainCamera = Camera.main;
+        catchableItem = GetComponent<CatchableItem>();
     }
 
     void Update()
     {
         float currentSpeed = fallSpeed;
 
-        switch (itemType)
+        ItemType effectiveType = itemType;
+        if (catchableItem != null && catchableItem.Definition != null)
+            effectiveType = catchableItem.Category == ItemCategory.Bug ? ItemType.Bug : ItemType.Fruit;
+
+        switch (effectiveType)
         {
             case ItemType.Fruit:
                 currentSpeed *= FruitMultiplier;

@@ -53,13 +53,14 @@ public class FallingItemSpawner : MonoBehaviour
 
     private float spawnTimer;
     private float phaseTimer;
-    private float feverTimer;
+    private readonly TemporaryEffectTimer feverTimer = new TemporaryEffectTimer();
     private float feverItemCooldownTimer;
 
     private bool isRush;
     private bool spawningEnabled = true;
 
-    public bool IsFever => feverTimer > 0f;
+    public bool IsFever => feverTimer.IsActive;
+    public float FeverRemainingTime => feverTimer.Remaining;
     public bool SpawningEnabled => spawningEnabled;
 
     public bool isFall;
@@ -85,7 +86,7 @@ public class FallingItemSpawner : MonoBehaviour
         // フィーバー中は果物だけ生成
         if (IsFever)
         {
-            feverTimer -= dt;
+            feverTimer.Tick(dt);
             spawnTimer -= dt;
 
             if (spawnTimer <= 0f)
@@ -100,9 +101,8 @@ public class FallingItemSpawner : MonoBehaviour
                 );
             }
 
-            if (feverTimer <= 0f)
+            if (!IsFever)
             {
-                feverTimer = 0f;
                 SetPhase(false);
                 Debug.Log("FEVER END");
             }
@@ -226,7 +226,10 @@ public class FallingItemSpawner : MonoBehaviour
     // 特別なアイテムを取得したときに呼び出す
     public void StartFever()
     {
-        feverTimer = Mathf.Max(0.1f, feverDuration);
+        if (!spawningEnabled || !isFall)
+            return;
+
+        feverTimer.Refresh(Mathf.Max(0.1f, feverDuration));
         spawnTimer = 0f;
 
         Debug.Log("FEVER START!");
@@ -236,5 +239,7 @@ public class FallingItemSpawner : MonoBehaviour
     {
         spawningEnabled = value;
         isFall = value;
+        if (!value)
+            feverTimer.Clear();
     }
 }
