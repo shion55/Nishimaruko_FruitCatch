@@ -2917,8 +2917,8 @@ GameObject:
   - component: {fileID: 1162301305}
   - component: {fileID: 1162301307}
   - component: {fileID: 1162301308}
-  - component: {fileID: 1162301304}
   - component: {fileID: 1162301303}
+  - component: {fileID: 1162301309}
   m_Layer: 0
   m_Name: Eater
   m_TagString: Untagged
@@ -2969,42 +2969,6 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 0
---- !u!58 &1162301304
-CircleCollider2D:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1162301301}
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Density: 1
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_ForceSendLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_ForceReceiveLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_ContactCaptureLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_CallbackLayers:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_IsTrigger: 1
-  m_UsedByEffector: 0
-  m_CompositeOperation: 0
-  m_CompositeOrder: 0
-  m_Offset: {x: 0, y: 0}
-  m_Radius: 0.6666667
 --- !u!114 &1162301305
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3017,17 +2981,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f38e678c2262ca347bd01f584f439142, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EaterCatchController
+  mouthOpenThreshold: 0.1
   microphone: {fileID: 1834224848}
   gameManager: {fileID: 1085787184}
   fallingItemSpawner: {fileID: 548926923}
   catchEffectPlayer: {fileID: 1162301307}
   scorePopup: {fileID: 1162301308}
   maxScale: 1.5
-  maxGain: 0.1
+  maxGain: 0.25
   stiffness: 889.3
   damping: 15
   EatingImage: {fileID: 21300000, guid: 5cb3e85f5639c8a47b21fcfa86bf5664, type: 3}
   ClosingImage: {fileID: 21300000, guid: dcda3c73cc0c50f4bac93747fbb224ee, type: 3}
+  maxBounceAngle: 45
+  bounceSpeed: 5
 --- !u!212 &1162301306
 SpriteRenderer:
   serializedVersion: 3
@@ -3132,6 +3099,43 @@ MonoBehaviour:
   duration: 0.8
   fadeInRatio: 0.2
   fadeOutStart: 0.55
+--- !u!70 &1162301309
+CapsuleCollider2D:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1162301301}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Density: 1
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ForceSendLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ForceReceiveLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ContactCaptureLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_CallbackLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_IsTrigger: 1
+  m_UsedByEffector: 0
+  m_CompositeOperation: 0
+  m_CompositeOrder: 0
+  m_Offset: {x: 0, y: 0}
+  m_Size: {x: 0.6, y: 0.2}
+  m_Direction: 1
 --- !u!1 &1184845179
 GameObject:
   m_ObjectHideFlags: 0
@@ -3325,7 +3329,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 48
+  m_fontSize: 45.2
   m_fontSizeBase: 48
   m_fontWeight: 400
   m_enableAutoSizing: 1

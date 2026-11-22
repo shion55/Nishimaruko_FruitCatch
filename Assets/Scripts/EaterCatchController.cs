@@ -1,8 +1,9 @@
 ﻿using UnityEngine;
 
+[RequireComponent(typeof(CapsuleCollider2D))]
 public class EaterCatchController : MonoBehaviour
 {
-    private const float MouthOpenThreshold = 0.1f;
+    [SerializeField, Min(0f)] private float mouthOpenThreshold = 0.1f;
 
     [SerializeField] private MicrophoneAnalysis microphone;
     [SerializeField] private GameManager gameManager;
@@ -10,14 +11,19 @@ public class EaterCatchController : MonoBehaviour
     [SerializeField] private CatchEffectPlayer catchEffectPlayer;
     [SerializeField] private ScorePopup scorePopup;
     [SerializeField] private float maxScale = 1.8f;
-    [SerializeField] private float maxGain = 0.1f;
+    [SerializeField] private float maxGain = 0.25f;
     [SerializeField] private float stiffness = 100f;
     [SerializeField] private float damping = 15f;
 
     [SerializeField] private Sprite EatingImage;
     [SerializeField] private Sprite ClosingImage;
 
+    [Header("Size and Bounce")]
+    [SerializeField, Range(0f, 80f)] private float maxBounceAngle = 45f;
+    [SerializeField, Min(0.1f)] private float bounceSpeed = 5f;
+
     private SpriteRenderer myspriterenderer;
+    private CapsuleCollider2D mouthCollider;
     private float smoothedGain;
     private Vector3 originalScale;
     private float scaleMultiplier = 1f;
@@ -25,6 +31,7 @@ public class EaterCatchController : MonoBehaviour
     private float scaleVelocity = 0f;
 
     public event System.Action<ItemConsumption> ItemConsumed;
+    public float CurrentMouthWidth => mouthCollider != null ? mouthCollider.bounds.size.x : 0f;
 
     private void Awake()
     {
@@ -32,6 +39,8 @@ public class EaterCatchController : MonoBehaviour
             microphone = GetComponentInParent<MicrophoneAnalysis>();
         originalScale = transform.localScale;
         myspriterenderer = GetComponent<SpriteRenderer>();
+        mouthCollider = GetComponent<CapsuleCollider2D>();
+        mouthCollider.direction = CapsuleDirection2D.Horizontal;
     }
 
     private void Update()
@@ -46,24 +55,17 @@ public class EaterCatchController : MonoBehaviour
             gain,
             1f - Mathf.Exp(-Time.deltaTime / smoothTime)
         );
-        if (gain <= MouthOpenThreshold)
-        {
-           myspriterenderer.sprite = ClosingImage;
-        }
-        else
-        {
-
-            myspriterenderer.sprite = EatingImage;
-        }
-            BounceByGain(smoothedGain, ref scaleVelocity);
+        myspriterenderer.sprite = gain <= mouthOpenThreshold ? ClosingImage : EatingImage;
+        BounceByGain(smoothedGain, ref scaleVelocity);
     }
 
     private float ReadInputGain()
     {
         if (MouseDebugInput.Enabled)
         {
+            float minimumGain = mouthOpenThreshold + 0.001f;
             return MouseDebugInput.LeftButtonHeld
-                ? Mathf.Max(maxGain, MouthOpenThreshold + 0.01f)
+                ? Mathf.Lerp(minimumGain, Mathf.Max(maxGain, minimumGain), MouseDebugInput.MouthOpenAmount)
                 : 0f;
         }
 
@@ -73,7 +75,7 @@ public class EaterCatchController : MonoBehaviour
     private void BounceByGain(float gain, ref float velocity)
     {
         // 音量を拡大率に変換
-        float normalizedGain = Mathf.Clamp01(gain / maxGain);
+        float normalizedGain = Mathf.Clamp01(gain / Mathf.Max(0.001f, maxGain));
         float targetScale = Mathf.Lerp(1f, maxScale, normalizedGain);
 
         // バネ運動
@@ -84,17 +86,14 @@ public class EaterCatchController : MonoBehaviour
             - velocity * damping;
 
         velocity += acceleration * dt;
-        scaleMultiplier = Mathf.Max(
-            0.1f,
-            scaleMultiplier + velocity * dt
-        );
+        scaleMultiplier = Mathf.Clamp(scaleMultiplier + velocity * dt, 1f, Mathf.Max(1f, maxScale));
 
         // 元の大きさを基準に拡大縮小
         transform.localScale = new Vector3(
-    originalScale.x * scaleMultiplier,
-    originalScale.y * Mathf.Lerp(1f, scaleMultiplier, 0.1f),
-    originalScale.z
-);
+            originalScale.x * scaleMultiplier,
+            originalScale.y,
+            originalScale.z
+        );
     }
 
     
@@ -108,6 +107,12 @@ public class EaterCatchController : MonoBehaviour
         TryCatch(other);
     }
 
+    private void OnTriggerExit2D(Collider2D other)
+    {
+        if (other != null)
+            other.GetComponentInParent<FallingObject>()?.ReleaseBounceContact(mouthCollider);
+    }
+
 
     private void TryCatch(Collider2D other)
     {
@@ -115,14 +120,31 @@ public class EaterCatchController : MonoBehaviour
             return;
 
         // 通常は声、マウスデバッグ中は左ボタンを押している間だけ取れる。
-        if (ReadInputGain() <= MouthOpenThreshold)
+        if (ReadInputGain() <= mouthOpenThreshold)
             return;
 
         CatchableItem item =
             other.GetComponentInParent<CatchableItem>();
 
-        if (item == null)
+        if (item == null || item.Definition == null || item.IsConsumed)
             return;
+
+        FallingObject falling = item.GetComponent<FallingObject>();
+        if (falling != null && falling.IsRising)
+            return;
+
+        if (item.Category == ItemCategory.Fruit && item.CatchWidth > CurrentMouthWidth + 0.0001f)
+        {
+            if (falling != null && mouthCollider != null)
+            {
+                Bounds mouth = mouthCollider.bounds;
+                float hitOffset = Mathf.Clamp(
+                    (other.bounds.center.x - mouth.center.x) / Mathf.Max(0.001f, mouth.extents.x), -1f, 1f);
+                float angle = hitOffset * maxBounceAngle * Mathf.Deg2Rad;
+                falling.TryBounce(new Vector2(Mathf.Sin(angle), Mathf.Cos(angle)) * bounceSpeed, mouthCollider);
+            }
+            return;
+        }
 
         // 同じアイテムを複数回数えない
         if (!item.TryConsume(out ItemConsumption consumption))

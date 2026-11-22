@@ -29,8 +29,11 @@ public static class ItemFoundationVerification
             spawner.enabled = false;
             spawner.SetSpawningEnabled(true);
 
-            var eaterObject = new GameObject("TestEater", typeof(SpriteRenderer));
+            var eaterObject = new GameObject("TestEater", typeof(SpriteRenderer), typeof(CapsuleCollider2D));
             eaterObject.transform.SetParent(fixture.transform, false);
+            var mouth = eaterObject.GetComponent<CapsuleCollider2D>();
+            mouth.direction = CapsuleDirection2D.Horizontal;
+            mouth.size = new Vector2(4f / 3f, 0.5f);
             var eater = eaterObject.AddComponent<EaterCatchController>();
             var eaterSettings = new SerializedObject(eater);
             eaterSettings.FindProperty("microphone").objectReferenceValue = microphone;
@@ -41,6 +44,8 @@ public static class ItemFoundationVerification
             var consumptions = new List<ItemConsumption>();
             eater.ItemConsumed += consumptions.Add;
             fixture.SetActive(true);
+            eaterObject.transform.localScale = new Vector3(1.5f, 1f, 1f);
+            Physics2D.SyncTransforms();
 
             var fruit = CreateItem("Fruit", fixture.transform, ItemKind.Fruit, 10);
             SetGain(microphone, 0f);

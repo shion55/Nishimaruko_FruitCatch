@@ -191,7 +191,11 @@ public class FallingItemSpawner : MonoBehaviour
             mainCamera.orthographicSize *
             mainCamera.aspect;
 
-        float margin = 0.5f;
+        CatchableItem metadata = prefab.GetComponent<CatchableItem>();
+        SpriteRenderer sprite = prefab.GetComponent<SpriteRenderer>();
+        float margin = metadata != null ? Mathf.Max(0.5f, metadata.CatchWidth * 0.5f) : 0.5f;
+        if (sprite != null && sprite.sprite != null)
+            margin = Mathf.Max(margin, sprite.sprite.bounds.extents.x * Mathf.Abs(prefab.transform.localScale.x));
 
         float x = Random.Range(
             -Mathf.Max(0f, halfWidth - margin),

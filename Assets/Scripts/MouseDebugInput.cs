@@ -9,6 +9,8 @@ public static class MouseDebugInput
 {
     private static bool enabled;
     private static int lastToggleFrame = -1;
+    private static float mouthOpenAmount = 1f;
+    private static int lastMouthAdjustmentFrame = -1;
 
     public static bool Enabled
     {
@@ -47,11 +49,31 @@ public static class MouseDebugInput
     public static bool RightButtonPressed =>
         TryGetMouse(out Mouse mouse) && mouse.rightButton.wasPressedThisFrame;
 
+    public static float MouthOpenAmount
+    {
+        get
+        {
+            if (lastMouthAdjustmentFrame != Time.frameCount)
+            {
+                lastMouthAdjustmentFrame = Time.frameCount;
+                if (TryGetMouse(out Mouse mouse) && mouse.leftButton.isPressed)
+                {
+                    float scroll = mouse.scroll.ReadValue().y;
+                    if (scroll != 0f)
+                        mouthOpenAmount = Mathf.Clamp01(mouthOpenAmount + Mathf.Sign(scroll) * 0.1f);
+                }
+            }
+            return mouthOpenAmount;
+        }
+    }
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetState()
     {
         enabled = false;
         lastToggleFrame = -1;
+        mouthOpenAmount = 1f;
+        lastMouthAdjustmentFrame = -1;
     }
 
     public static bool TryGetHorizontalPosition(Camera camera, float margin, out float worldX)

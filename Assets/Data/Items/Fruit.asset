@@ -15,4 +15,4 @@ MonoBehaviour:
   itemId: apple
   kind: 0
   scoreDelta: 10
-  localCatchWidth: 3.48
+  localCatchWidth: 2
