@@ -5,30 +5,29 @@ using System.Net.Sockets;
 using System.Text;
 using System.Globalization;
 
+[DefaultExecutionOrder(-100)]
 public class FaceMovementController : MonoBehaviour
 {
-    //pythonから顔の位置をOSCで受け反映させる
+    // Pythonから顔位置を受信し、移動側へ正規化した目標位置を渡す。
     [SerializeField] private int port = 5005;
-    [SerializeField] private float smoothTime = 0.12f;
 
     [SerializeField] private float inputMinX = 0.25f;
     [SerializeField] private float inputMaxX = 0.75f;
 
-    [SerializeField] private float horizontalMargin = 0.7f;
-    [SerializeField] private float trackingTimeout = 0.5f;
+    [SerializeField, Min(0f)] private float trackingTimeout = 0.5f;
 
     private UdpClient receiver;
     private IPEndPoint remoteEndPoint;
-    private Camera mainCamera;
 
     private float faceX = 0.5f;
-    private float velocityX;
     private float lastReceivedTime;
     private bool hasReceivedFace;
 
     public bool movefacetoggle = true;
     void OnEnable()
     {
+        hasReceivedFace = false;
+
         try
         {
             receiver = new UdpClient(
@@ -45,17 +44,12 @@ public class FaceMovementController : MonoBehaviour
         }
     }
 
-    void Start()
-    {
-        mainCamera = Camera.main;
-    }
-
     void Update()
     {
-        if (receiver == null || mainCamera == null || movefacetoggle)
+        if (receiver == null)
             return;
 
-        // 最新の顔位置を取得
+        // マウス操作中や顔移動の無効化中も受信し、古い位置を溜めない。
         while (receiver.Available > 0)
         {
             byte[] data = receiver.Receive(
@@ -76,54 +70,28 @@ public class FaceMovementController : MonoBehaviour
                 hasReceivedFace = true;
             }
         }
+    }
 
-        // デバッグ中も受信データを消費し、通常入力へ戻したときに古い位置を使わない。
-        if (MouseDebugInput.Enabled)
-        {
-            velocityX = 0f;
-            return;
-        }
+    public bool TryGetNormalizedPosition(out float normalizedX)
+    {
+        normalizedX = 0.5f;
+        if (!isActiveAndEnabled || movefacetoggle || !hasReceivedFace ||
+            Time.time - lastReceivedTime > Mathf.Max(0f, trackingTimeout))
+            return false;
 
-        // 顔が見つからなくなったら停止
-        if (!hasReceivedFace ||
-            Time.time - lastReceivedTime > trackingTimeout)
-            return;
-
-        float normalized = Mathf.InverseLerp(
+        normalizedX = Mathf.InverseLerp(
             inputMinX,
             inputMaxX,
             faceX
         );
 
-        float halfWidth =
-            mainCamera.orthographicSize *
-            mainCamera.aspect;
-
-        float limit = Mathf.Max(
-            0f, halfWidth - horizontalMargin
-        );
-
-        float targetX = Mathf.Lerp(
-            mainCamera.transform.position.x - limit,
-            mainCamera.transform.position.x + limit,
-            normalized
-        );
-
-        Vector3 position = transform.position;
-
-        position.x = Mathf.SmoothDamp(
-            position.x,
-            targetX,
-            ref velocityX,
-            smoothTime
-        );
-
-        transform.position = position;
+        return true;
     }
 
     void OnDisable()
     {
         receiver?.Close();
         receiver = null;
+        hasReceivedFace = false;
     }
 }
