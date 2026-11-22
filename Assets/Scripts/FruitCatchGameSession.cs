@@ -29,10 +29,10 @@ public sealed class FruitCatchGameSession : MonoBehaviour
     [SerializeField] private EaterCatchController eaterController;
 
     [Header("Time")]
-    [SerializeField, Min(1f)] private float gameDuration = 50f;
+    [SerializeField, Min(1f)] private float gameDuration = 50f; // 本編の制限時間（秒）。
     [SerializeField, Min(0.1f)] private float startDisplayDuration = 1f;
     [SerializeField, Min(0.1f)] private float finishDisplayDuration = 1f;
-    [SerializeField, Min(0.1f)] private float resultDisplayDuration = 10f;
+    [SerializeField, Min(0.1f)] private float resultDisplayDuration = 10f; // 結果を表示して準備画面へ戻るまでの秒数。
     [SerializeField, Min(0f)] private float warningStartSeconds = 10f;
     [SerializeField, Min(0.1f)] private float warningBlinkInterval = 0.5f;
 

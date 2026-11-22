@@ -5,7 +5,7 @@ using UnityEditor;
 using UnityEngine;
 using Unity.Pipeline.Scripting;
 
-// 実際のFixedUpdateとTriggerを使い、画面外の独立した配置で確認します。
+// 実際のFixedUpdateとColliderの重なりを、画面外の独立した配置で確認します。
 public static class FruitBounceVerification
 {
     public static async Task<object> Run()
@@ -25,7 +25,7 @@ public static class FruitBounceVerification
         var fixture = new GameObject("FruitBounceVerification");
         fixture.SetActive(false);
         fixture.transform.position = new Vector3(1000f, 1000f);
-        var fruitObjects = new List<GameObject>();
+        var items = new List<GameObject>();
         var checks = new List<string>();
         try
         {
@@ -49,57 +49,59 @@ public static class FruitBounceVerification
             var mouth = mouthObject.GetComponent<CapsuleCollider2D>();
             mouth.isTrigger = true;
             mouth.direction = CapsuleDirection2D.Horizontal;
-            mouth.size = new Vector2(0.8f, 0.5f);
+            mouth.size = new Vector2(0.6f, 0.2f);
             var eater = mouthObject.AddComponent<EaterCatchController>();
             var eaterSettings = new SerializedObject(eater);
             eaterSettings.FindProperty("microphone").objectReferenceValue = microphone;
             eaterSettings.FindProperty("gameManager").objectReferenceValue = manager;
-            eaterSettings.FindProperty("stiffness").floatValue = 0f;
-            eaterSettings.FindProperty("damping").floatValue = 0f;
+            eaterSettings.FindProperty("maxScale").floatValue = 1.5f;
+            var openSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Image/honbansozai/mochi-shomenopen.png");
+            var closedSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Image/honbansozai/mochi-shomen.png");
+            eaterSettings.FindProperty("EatingImage").objectReferenceValue = openSprite;
+            eaterSettings.FindProperty("ClosingImage").objectReferenceValue = closedSprite;
+            var sensors = new List<BoxCollider2D>();
+            foreach (int side in new[] { -1, 1 })
+            {
+                var sensorObject = new GameObject(side < 0 ? "LeftSensor" : "RightSensor", typeof(BoxCollider2D));
+                sensorObject.transform.SetParent(mouthObject.transform, false);
+                sensorObject.transform.localPosition = new Vector3(side * 0.375f, -0.2f);
+                var sensor = sensorObject.GetComponent<BoxCollider2D>();
+                sensor.size = new Vector2(0.15f, 0.2f);
+                sensor.isTrigger = true;
+                sensors.Add(sensor);
+                eaterSettings.FindProperty(side < 0 ? "leftBounceSensor" : "rightBounceSensor").objectReferenceValue = sensor;
+            }
             eaterSettings.ApplyModifiedPropertiesWithoutUndo();
             int notifications = 0;
             eater.ItemConsumed += _ => notifications++;
             fixture.SetActive(true);
-            SetGain(microphone, 0f);
-            Physics2D.SyncTransforms();
 
-            var widthObject = new GameObject("WidthOnlyMouth", typeof(SpriteRenderer), typeof(CapsuleCollider2D));
-            widthObject.SetActive(false);
-            widthObject.transform.SetParent(fixture.transform, false);
-            widthObject.transform.localPosition = new Vector3(0f, 5f);
-            var widthCollider = widthObject.GetComponent<CapsuleCollider2D>();
-            widthCollider.direction = CapsuleDirection2D.Horizontal;
-            widthCollider.size = new Vector2(4f / 3f, 0.5f);
-            widthCollider.isTrigger = true;
-            var widthEater = widthObject.AddComponent<EaterCatchController>();
-            var widthSettings = new SerializedObject(widthEater);
-            widthSettings.FindProperty("microphone").objectReferenceValue = microphone;
-            widthSettings.FindProperty("maxScale").floatValue = 1.5f;
-            widthSettings.ApplyModifiedPropertiesWithoutUndo();
-            widthObject.SetActive(true);
-            Physics2D.SyncTransforms();
-            float initialHeight = widthCollider.bounds.size.y;
             SetGain(microphone, 0.25f);
-            await Advance(0.5f);
-            Require(widthCollider.direction == CapsuleDirection2D.Horizontal &&
-                    widthEater.CurrentMouthWidth > 1.9f &&
-                    Mathf.Abs(widthCollider.bounds.size.y - initialHeight) < 0.0001f &&
-                    widthObject.transform.localScale.y == 1f,
-                "口を開いたときにカプセルの縦幅が変化しました。");
+            await Advance(0.8f);
+            Require(mouthObject.GetComponent<SpriteRenderer>().sprite == openSprite &&
+                    Mathf.Abs(mouth.bounds.size.x - 0.9f) < 0.01f &&
+                    Mathf.Abs(mouth.bounds.size.y - 0.2f) < 0.001f &&
+                    Mathf.Abs(sensors[0].bounds.max.x - mouth.bounds.min.x) < 0.001f &&
+                    Mathf.Abs(sensors[1].bounds.min.x - mouth.bounds.max.x) < 0.001f &&
+                    sensors[0].bounds.max.y <= mouth.bounds.min.y + 0.001f,
+                "最大開口幅・固定高さ・外側センサーの追従が不正です。");
             SetGain(microphone, 0f);
-            await Advance(0.5f);
-            Require(widthEater.CurrentMouthWidth < 1.4f &&
-                    Mathf.Abs(widthCollider.bounds.size.y - initialHeight) < 0.0001f,
-                "口を閉じたときに横幅だけが戻りませんでした。");
-            UnityEngine.Object.DestroyImmediate(widthObject);
-            checks.Add("横向きカプセルは開閉で横幅だけが変化し、縦幅を維持する");
+            await Until(() => Mathf.Abs(mouth.bounds.size.x - 0.6f) < 0.01f, 2f);
+            Require(mouthObject.GetComponent<SpriteRenderer>().sprite == closedSprite &&
+                    Mathf.Abs(mouth.bounds.size.x - 0.6f) < 0.01f &&
+                    Mathf.Abs(mouth.bounds.size.y - 0.2f) < 0.001f,
+                "閉口時の幅と高さが不正です。");
+            checks.Add("元の一枚絵を開閉で切り替え、口幅0.6～0.9・高さ0.2と左右センサーの追従を保つ");
+            eaterSettings.Update();
+            eaterSettings.FindProperty("stiffness").floatValue = 0f;
+            eaterSettings.ApplyModifiedPropertiesWithoutUndo();
 
-            FallingObject CreateFruit(float x, float y)
+            FallingObject CreateItem(float x, float y, string name = "Fruit")
             {
-                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefab/Fruit.prefab");
+                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefab/" + name + ".prefab");
                 var go = UnityEngine.Object.Instantiate(prefab,
                     fixture.transform.position + new Vector3(x, y), Quaternion.identity, fixture.transform);
-                fruitObjects.Add(go);
+                items.Add(go);
                 var falling = go.GetComponent<FallingObject>();
                 var settings = new SerializedObject(falling);
                 settings.FindProperty("gameplayCamera").objectReferenceValue = camera;
@@ -109,102 +111,102 @@ public static class FruitBounceVerification
                 return falling;
             }
 
-            var closed = CreateFruit(0f, 1.6f);
-            await Advance(0.35f);
-            Require(closed != null && !closed.IsRising && closed.Velocity.y < 0f && manager.Score == 0,
-                "閉口中に弾き上げ・取得が発生しました。");
+            var closed = CreateItem(0f, 1.6f);
+            var closedSide = CreateItem(1.2f, 1.6f);
+            await Advance(0.7f);
+            Require(closed != null && closedSide != null && !closed.IsRising && !closedSide.IsRising &&
+                    manager.Score == 0 && notifications == 0,
+                "閉口中に取得か弾き上げが発生しました。");
             UnityEngine.Object.DestroyImmediate(closed.gameObject);
-            checks.Add("閉口中は果物を弾き上げず、取得もしない");
+            UnityEngine.Object.DestroyImmediate(closedSide.gameObject);
+            checks.Add("閉口中は口・外側センサーのどちらでも取得・弾き上げを行わない");
 
             SetGain(microphone, 0.2f);
-            foreach (float offset in new[] { -0.4f, 0.4f, 0f })
+            var large = CreateItem(0f, 1.6f);
+            Require(large.GetComponent<Collider2D>().bounds.size.x > mouth.bounds.size.x,
+                "通常果物が口より大きい状態になっていません。");
+            await Until(() => notifications == 1, 2f);
+            Require(manager.Score == 10 && manager.FruitCount == 1, "口より大きい果物を取得できません。");
+            checks.Add("口より幅の大きい通常果物も、接触すると取得する");
+
+            var shared = CreateItem(0f, 0f);
+            shared.SetSpeed(0f);
+            bool bouncedBeforeCatch = true;
+            void OnSharedCatch(ItemConsumption _) { bouncedBeforeCatch = shared.IsRising; }
+            eater.ItemConsumed += OnSharedCatch;
+            await Until(() => notifications == 2, 2f);
+            eater.ItemConsumed -= OnSharedCatch;
+            Require(!bouncedBeforeCatch && manager.Score == 20,
+                "口と左右センサーへ同時に重なった果物で、取得が優先されませんでした。");
+            checks.Add("口と左右センサーへ同時に触れる果物は、弾き上げず取得を優先する");
+
+            foreach (int side in new[] { -1, 1 })
             {
-                mouth.size = new Vector2(0.8f, 0.5f);
-                Physics2D.SyncTransforms();
-                var fruit = CreateFruit(offset, 1.7f);
-                await Until(() => fruit != null && fruit.IsRising, 2f);
-                Require(manager.Score == 0 && notifications == 0, "反射時に得点や取得通知が発生しました。");
-                Require(fruit.Velocity.y > 0f && Mathf.Abs(fruit.Velocity.x) <= 3.54f,
-                    "反射の初速が最大45度の設定を超えました。");
-                Require(offset == 0f ? Mathf.Abs(fruit.Velocity.x) < 0.001f : fruit.Velocity.x * offset > 0f,
-                    "接触位置と反射方向が一致しません。");
-                Vector2 velocity = fruit.Velocity;
-                Require(!fruit.TryBounce(new Vector2(0f, 5f), mouth) && fruit.Velocity == velocity,
-                    "上昇中に反射が再発動しました。");
-
-                mouth.size = new Vector2(2.4f, 0.5f);
-                Physics2D.SyncTransforms();
-                await Advance(0.1f);
-                Require(fruit != null && fruit.IsRising && manager.Score == 0,
-                    "口を広げた際、上昇中の果物を取得しました。");
-                if (offset == 0f)
+                int before = notifications;
+                var fruit = CreateItem(side * 1.2f, 1.6f);
+                float originalX = fruit.GetComponent<Rigidbody2D>().position.x;
+                for (int bounce = 0; bounce < 3; bounce++)
                 {
-                    await Until(() => notifications == 1, 3f);
-                    Require(manager.Score == 10 && manager.FruitCount == 1,
-                        "反射後の再落下で一度だけ取得できませんでした。");
+                    await Until(() => fruit != null && fruit.IsRising, 2f);
+                    Require(notifications == before && fruit.GetComponent<Rigidbody2D>().position.x == originalX,
+                        "外側だけの接触で取得されたか、弾き上げで横移動しました。");
+                    float speed = fruit.VerticalSpeed;
+                    Require(!fruit.TryBounce(5f) && fruit.VerticalSpeed == speed,
+                        "上昇中に初速が繰り返し設定されました。");
+                    await Until(() => fruit != null && !fruit.IsRising, 2f);
                 }
-                else
-                    UnityEngine.Object.DestroyImmediate(fruit.gameObject);
+                mouthBody.position = fixture.transform.position + new Vector3(side * 1.2f, 0f);
+                Physics2D.SyncTransforms();
+                await Until(() => notifications == before + 1, 2f);
+                mouthBody.position = fixture.transform.position;
+                Physics2D.SyncTransforms();
             }
-            checks.Add("口の左・右・中央で、左上・右上・真上へ反射する");
-            checks.Add("反射で消費せず、上昇中の重複反射と取得を抑止する");
-            checks.Add("口を広げると再落下した果物を一度だけ取得できる");
+            checks.Add("左右とも真上へ繰り返し弾き、同じ果物を3回救済した後に再取得できる");
+            checks.Add("上昇中の再弾き上げを抑え、下降後には回数制限なしで弾き直す");
 
-            mouth.size = new Vector2(0.8f, 0.5f);
-            Physics2D.SyncTransforms();
-            var pitched = CreateFruit(0f, 2.5f);
+            var rising = CreateItem(0f, 0.3f);
+            Require(rising.TryBounce(5f), "上昇中の取得確認を開始できません。");
+            await Until(() => notifications == 5, 2f);
+            checks.Add("上昇中でも開いた口へ接触すれば取得できる");
+
+            var bug = CreateItem(0.8f, 1.4f, "Bug");
+            await Advance(0.8f);
+            Require(bug != null && !bug.IsRising && manager.BugCount == 0 && notifications == 5,
+                "外側センサーが虫を弾くか、虫を取得しました。");
+            UnityEngine.Object.DestroyImmediate(bug.gameObject);
+            checks.Add("虫は外側センサーでは取得・弾き上げを行わない");
+
+            var pitched = CreateItem(12f, 2.5f);
             FallingObject.FruitMultiplier = 0.25f;
-            float originalY = pitched.GetComponent<Rigidbody2D>().position.y;
-            Require(pitched.TryBounce(new Vector2(0f, 5f), mouth), "音程確認用の反射を開始できません。");
+            Vector2 originalPosition = pitched.GetComponent<Rigidbody2D>().position;
+            Require(pitched.TryBounce(5f), "音程確認用の弾き上げを開始できません。");
             await Advance(0.2f);
-            Require(pitched.IsRising && pitched.GetComponent<Rigidbody2D>().position.y - originalY > 0.65f &&
-                    pitched.Velocity.y > 2.4f,
-                "高音の減速が上昇中の軌道に適用されました。");
+            Require(pitched.IsRising && pitched.GetComponent<Rigidbody2D>().position.y - originalPosition.y > 0.65f &&
+                    pitched.VerticalSpeed > 2.4f && pitched.GetComponent<Rigidbody2D>().position.x == originalPosition.x,
+                "上昇中の音程除外か、横位置の維持が不正です。");
             await Until(() => !pitched.IsRising, 2f);
-            Require(Mathf.Abs(pitched.Velocity.y + 0.75f) < 0.001f,
-                "下降時に音程の速度制御へ戻りませんでした。");
+            Require(Mathf.Abs(pitched.VerticalSpeed + 0.75f) < 0.001f, "下降時に音程制御へ戻りません。");
             FallingObject.FruitMultiplier = 1f;
             await Advance(0.06f);
-            Require(Mathf.Abs(pitched.Velocity.y + 3f) < 0.001f,
-                "下降中の音程変更が反映されませんでした。");
-            checks.Add("上昇は音程に影響されず、下降へ転じると音程制御へ戻る");
+            Require(Mathf.Abs(pitched.VerticalSpeed + 3f) < 0.001f, "下降中の音程変更が反映されません。");
+            checks.Add("音程は上昇へ影響せず、下降時には通常の速度制御へ戻る");
+            checks.Add("画面端への横位置補正を行わず、果物の横位置を維持する");
 
             pitched.enabled = false;
             Vector2 frozen = pitched.GetComponent<Rigidbody2D>().position;
             await Advance(0.1f);
-            Require(Vector2.Distance(frozen, pitched.GetComponent<Rigidbody2D>().position) < 0.001f,
-                "落下停止後もRigidbody2Dが移動しました。");
-            UnityEngine.Object.DestroyImmediate(pitched.gameObject);
-            checks.Add("ゲーム終了時の停止処理で反射中・下降中の移動も停止する");
+            Require(pitched.GetComponent<Rigidbody2D>().position == frozen && pitched.VerticalSpeed == 0f,
+                "落下停止後も移動しました。");
+            checks.Add("ゲーム終了時の停止処理で弾き上げ・下降を停止する");
 
-            foreach (float direction in new[] { -1f, 1f })
-            {
-                float halfItemWidth = 0.84f;
-                float edge = direction * (camera.orthographicSize * camera.aspect - halfItemWidth);
-                var wallFruit = CreateFruit(edge - direction * 0.02f, 0f);
-                Require(wallFruit.TryBounce(new Vector2(direction * 4f, 4f), mouth), "壁確認の反射を開始できません。");
-                await Advance(0.12f);
-                var body = wallFruit.GetComponent<Rigidbody2D>();
-                Require(Mathf.Abs(body.position.x - (1000f + edge)) < 0.01f && wallFruit.Velocity.x == 0f,
-                    "画面端で横速度を止められませんでした。");
-                await Until(() => !wallFruit.IsRising, 2f);
-                float previousY = body.position.y;
-                await Advance(0.08f);
-                Require(body.position.y < previousY && Mathf.Abs(body.position.x - (1000f + edge)) < 0.01f,
-                    "画面端に沿って下降しませんでした。");
-                var collider = wallFruit.GetComponent<Collider2D>();
-                Require(LayerMask.LayerToName(wallFruit.gameObject.layer) == "FallingItem" &&
-                        (collider.excludeLayers.value & (1 << wallFruit.gameObject.layer)) != 0,
-                    "落下物同士の接触が無効化されていません。");
-                UnityEngine.Object.DestroyImmediate(wallFruit.gameObject);
-            }
-            checks.Add("左右の画面端で横速度を止め、画面内で壁に沿って下降する");
-            checks.Add("落下物の専用レイヤーで、落下物同士の接触を無効化する");
+            var missed = CreateItem(4f, -5.9f);
+            await Until(() => missed == null, 2f);
+            checks.Add("取りこぼして画面下へ落ちた果物は削除する");
             return new { passed = checks.Count, checks, score = manager.Score, notifications };
         }
         finally
         {
-            foreach (var go in fruitObjects)
+            foreach (var go in items)
                 if (go != null) UnityEngine.Object.DestroyImmediate(go);
             UnityEngine.Object.DestroyImmediate(fixture);
             if (pitchEnabled && pitch != null) pitch.enabled = true;

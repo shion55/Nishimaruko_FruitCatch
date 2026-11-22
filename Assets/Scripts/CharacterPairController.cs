@@ -5,8 +5,8 @@ using UnityEngine.InputSystem;
 public class CharacterPairController : MonoBehaviour
 {
     [Header("Movement")]
-    [SerializeField, Min(0f)] private float moveSpeed = 5f;
-    [SerializeField, Min(0.01f)] private float followSmoothTime = 0.2f;
+    [SerializeField, Min(0f)] private float moveSpeed = 5f; // 横移動速度の上限（units/秒）。
+    [SerializeField, Min(0.01f)] private float followSmoothTime = 0.2f; // 追従の滑らかさ（秒）。大きいほど緩やか。
     [SerializeField, Min(0f)] private float horizontalMargin = 0.7f;
 
     private enum InputSource
@@ -146,6 +146,7 @@ public class CharacterPairController : MonoBehaviour
 
     private void SetPositionX(float x)
     {
+        // 初期高さはCharactorParentのTransformで調整し、移動では横位置だけを変える。
         Vector3 position = transform.position;
         position.x = ClampPositionX(x);
         if (position.x != x)

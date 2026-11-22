@@ -18,6 +18,7 @@ public enum ItemKind
 public enum ItemEffectType
 {
     None,
+    // 皮の着地先は画面幅の35%／65%付近を想定（投擲は未実装）。
     BananaPeel,
     Chili,
     Fever
@@ -28,15 +29,12 @@ public sealed class ItemDefinition : ScriptableObject
 {
     [SerializeField] private string itemId = "apple";
     [SerializeField] private ItemKind kind = ItemKind.Fruit;
-    [SerializeField] private int scoreDelta = 10;
-    [Tooltip("拡大縮小前の横幅。生成されたアイテムの横スケールを掛けて取得判定に使います。")]
-    [SerializeField, Min(0.01f)] private float localCatchWidth = 1f;
+    [SerializeField] private int scoreDelta = 10; // 種類ごとの加減点。Assets/Data/Itemsの定義で調整。
 
     public string ItemId => itemId;
     public ItemKind Kind => kind;
     public ItemCategory Category => kind == ItemKind.Bug ? ItemCategory.Bug : ItemCategory.Fruit;
     public int ScoreDelta => scoreDelta;
-    public float LocalCatchWidth => Mathf.Max(0.01f, localCatchWidth);
 
     public ItemEffectType Effect => kind switch
     {

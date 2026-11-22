@@ -12,9 +12,9 @@ FruitCatchの通常操作と、カメラ判定・マイク入力を代替する�
 | マイクに向かって声を出す | Eaterが口を開き、触れた落下物を取る |
 | 声の高さを変える | 果物と虫の落下速度が変わる |
 
-Preparationで両手を上げて開始し、役割説明、顔登録、声の確認、アイテム説明、カウントダウンを経てMainGameへ進みます。本編は50秒間で、結果を10秒間表示した後にPreparationへ戻ります。
+Preparationで両手を上げて開始し、役割説明、顔登録、声の確認、アイテム説明、カウントダウンを経てMainGameへ進みます。本編終了後は結果を表示し、Preparationへ戻ります。
 
-顔位置とマウス位置への追従は、`CharactorParent`の`CharacterPairController`で共通に制御します。`Move Speed`は移動速度の上限（初期値5 units/秒）、`Follow Smooth Time`は追従の滑らかさ（初期値0.2秒）です。`Follow Smooth Time`を大きくすると、目標への反応が緩やかになります。一定時間待ってから動き出す入力遅延ではありません。顔が検出されなくなった場合は、`FaceMovementController`の`Tracking Timeout`（初期値0.5秒）を過ぎると停止します。
+顔位置とマウス位置への追従は、`CharactorParent`の`CharacterPairController`で共通に制御します。`Move Speed`は移動速度の上限、`Follow Smooth Time`は追従の滑らかさです。`Follow Smooth Time`を大きくすると、目標への反応が緩やかになります。一定時間待ってから動き出す入力遅延ではありません。顔が検出されなくなった場合は、`FaceMovementController`の`Tracking Timeout`を過ぎると停止します。
 
 画面下部の黄色い上向き三角形は、顔・マウスによる移動目標を示します。三角形は入力位置へすぐに移動し、キャラクターが遅れて追従します。有効な入力がない場合は三角形を非表示にします。
 

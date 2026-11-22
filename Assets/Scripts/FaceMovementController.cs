@@ -14,7 +14,7 @@ public class FaceMovementController : MonoBehaviour
     [SerializeField] private float inputMinX = 0.25f;
     [SerializeField] private float inputMaxX = 0.75f;
 
-    [SerializeField, Min(0f)] private float trackingTimeout = 0.5f;
+    [SerializeField, Min(0f)] private float trackingTimeout = 0.5f; // 顔位置の受信が途切れてから停止するまでの秒数。
 
     private UdpClient receiver;
     private IPEndPoint remoteEndPoint;

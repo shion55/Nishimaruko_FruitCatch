@@ -15,4 +15,3 @@ MonoBehaviour:
   itemId: feverFruit
   kind: 4
   scoreDelta: 10
-  localCatchWidth: 2

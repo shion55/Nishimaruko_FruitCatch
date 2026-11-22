@@ -9,9 +9,8 @@ public readonly struct ItemConsumption
     public int ScoreDelta { get; }
     public ItemEffectType Effect { get; }
     public Vector3 WorldPosition { get; }
-    public float CatchWidth { get; }
 
-    public ItemConsumption(ItemDefinition definition, Vector3 worldPosition, float catchWidth)
+    public ItemConsumption(ItemDefinition definition, Vector3 worldPosition)
     {
         Kind = definition.Kind;
         Category = definition.Category;
@@ -19,7 +18,6 @@ public readonly struct ItemConsumption
         ScoreDelta = definition.ScoreDelta;
         Effect = definition.Effect;
         WorldPosition = worldPosition;
-        CatchWidth = catchWidth;
     }
 }
 
@@ -32,9 +30,6 @@ public class CatchableItem : MonoBehaviour
     public ItemCategory Category => definition != null ? definition.Category : ItemCategory.Fruit;
     public string ItemId => definition != null ? definition.ItemId : string.Empty;
     public int ScoreDelta => definition != null ? definition.ScoreDelta : 0;
-    public float CatchWidth => definition != null
-        ? definition.LocalCatchWidth * Mathf.Abs(transform.lossyScale.x)
-        : 0f;
     public bool IsConsumed => consumed;
 
     private bool consumed = false;
@@ -51,7 +46,7 @@ public class CatchableItem : MonoBehaviour
             return false;
 
         consumed = true;
-        consumption = new ItemConsumption(definition, transform.position, CatchWidth);
+        consumption = new ItemConsumption(definition, transform.position);
         Destroy(gameObject);
         return true;
     }

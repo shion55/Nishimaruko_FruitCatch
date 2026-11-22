@@ -11,21 +11,14 @@ public class FallingObject : MonoBehaviour
         Other
     }
 
-    public enum MotionPhase
-    {
-        Falling,
-        ReflectedRising,
-        ReflectedDescending
-    }
-
     [Header("Item")]
     [SerializeField] private ItemType itemType = ItemType.Fruit;
 
     [Header("Fall")]
-    [SerializeField] private float fallSpeed = 3f;
+    [SerializeField] private float fallSpeed = 3f; // 下降速度（units/秒）。生成時はSpawnerが設定する。
 
     [Header("Bounce")]
-    [SerializeField, Min(0.1f)] private float bounceGravity = 10f;
+    [SerializeField, Min(0.1f)] private float bounceGravity = 10f; // 上昇中の減速（units/秒²）。初速と合わせて高さを調整。
     [SerializeField] private Camera gameplayCamera;
 
     // 共通の速度制御
@@ -38,12 +31,8 @@ public class FallingObject : MonoBehaviour
 
     private Rigidbody2D body;
     private CatchableItem catchableItem;
-    private SpriteRenderer spriteRenderer;
-    private Collider2D bounceContact;
-
-    public MotionPhase MotionState { get; private set; }
-    public Vector2 Velocity { get; private set; }
-    public bool IsRising => MotionState == MotionPhase.ReflectedRising;
+    public float VerticalSpeed { get; private set; }
+    public bool IsRising => VerticalSpeed > 0f;
 
     private void Awake()
     {
@@ -53,39 +42,33 @@ public class FallingObject : MonoBehaviour
         body.bodyType = RigidbodyType2D.Kinematic;
         body.gravityScale = 0f;
         catchableItem = GetComponent<CatchableItem>();
-        spriteRenderer = GetComponent<SpriteRenderer>();
     }
 
     private void FixedUpdate()
     {
         float dt = Time.fixedDeltaTime;
         Vector2 position = body.position;
-        Vector2 velocity = Velocity;
         float descentSpeed = GetDescentSpeed();
 
         if (IsRising)
         {
             float gravity = Mathf.Max(0.1f, bounceGravity);
-            float ascentTime = Mathf.Min(dt, Mathf.Max(0f, velocity.y) / gravity);
-            position.y += velocity.y * ascentTime - 0.5f * gravity * ascentTime * ascentTime;
-            velocity.y -= gravity * ascentTime;
+            float ascentTime = Mathf.Min(dt, VerticalSpeed / gravity);
+            position.y += VerticalSpeed * ascentTime - 0.5f * gravity * ascentTime * ascentTime;
+            VerticalSpeed -= gravity * ascentTime;
 
-            if (velocity.y <= 0.0001f)
+            if (VerticalSpeed <= 0.0001f)
             {
-                MotionState = MotionPhase.ReflectedDescending;
                 position.y -= descentSpeed * (dt - ascentTime);
-                velocity.y = -descentSpeed;
+                VerticalSpeed = -descentSpeed;
             }
         }
         else
         {
-            velocity.y = -descentSpeed;
-            position.y += velocity.y * dt;
+            VerticalSpeed = -descentSpeed;
+            position.y += VerticalSpeed * dt;
         }
 
-        position.x += velocity.x * dt;
-        ClampToHorizontalBounds(ref position, ref velocity);
-        Velocity = velocity;
         body.MovePosition(position);
 
         if (gameplayCamera != null && position.y <
@@ -93,45 +76,20 @@ public class FallingObject : MonoBehaviour
             Destroy(gameObject);
     }
 
-    public bool TryBounce(Vector2 launchVelocity, Collider2D mouth)
+    public bool TryBounce(float speed)
     {
-        if (!isActiveAndEnabled || mouth == null || IsRising || bounceContact != null || launchVelocity.y <= 0f)
+        if (!isActiveAndEnabled || IsRising || speed <= 0f)
             return false;
 
-        bounceContact = mouth;
-        MotionState = MotionPhase.ReflectedRising;
-        Velocity = launchVelocity;
+        VerticalSpeed = speed;
         return true;
-    }
-
-    public void ReleaseBounceContact(Collider2D mouth)
-    {
-        if (bounceContact == mouth)
-            bounceContact = null;
     }
 
     private void OnDisable()
     {
         if (body != null)
             body.linearVelocity = Vector2.zero;
-        Velocity = Vector2.zero;
-        bounceContact = null;
-    }
-
-    private void ClampToHorizontalBounds(ref Vector2 position, ref Vector2 velocity)
-    {
-        if (gameplayCamera == null)
-            return;
-
-        float itemHalfWidth = catchableItem != null ? catchableItem.CatchWidth * 0.5f : 0f;
-        if (spriteRenderer != null)
-            itemHalfWidth = Mathf.Max(itemHalfWidth, spriteRenderer.bounds.extents.x);
-        float limit = Mathf.Max(0f, gameplayCamera.orthographicSize * gameplayCamera.aspect - itemHalfWidth);
-        float centerX = gameplayCamera.transform.position.x;
-        float clampedX = Mathf.Clamp(position.x, centerX - limit, centerX + limit);
-        if (clampedX != position.x)
-            velocity.x = 0f;
-        position.x = clampedX;
+        VerticalSpeed = 0f;
     }
 
     private float GetDescentSpeed()

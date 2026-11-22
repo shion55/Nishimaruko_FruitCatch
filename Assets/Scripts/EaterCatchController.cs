@@ -1,26 +1,30 @@
-﻿using UnityEngine;
+﻿using System.Collections.Generic;
+using UnityEngine;
 
 [RequireComponent(typeof(CapsuleCollider2D))]
 public class EaterCatchController : MonoBehaviour
 {
-    [SerializeField, Min(0f)] private float mouthOpenThreshold = 0.1f;
+    [SerializeField, Min(0f)] private float mouthOpenThreshold = 0.1f; // 開口と取得を有効にするGainの下限。
 
     [SerializeField] private MicrophoneAnalysis microphone;
     [SerializeField] private GameManager gameManager;
     [SerializeField] private FallingItemSpawner fallingItemSpawner;
     [SerializeField] private CatchEffectPlayer catchEffectPlayer;
     [SerializeField] private ScorePopup scorePopup;
-    [SerializeField] private float maxScale = 1.8f;
-    [SerializeField] private float maxGain = 0.25f;
+    // 実際の値はEaterのInspectorで調整。シーンの設定はコードの初期値より優先される。
+    [SerializeField] private float maxScale = 1.5f; // 最大の横幅倍率。
+    [SerializeField] private float maxGain = 0.25f; // 最大開口に達するGain。
     [SerializeField] private float stiffness = 100f;
     [SerializeField] private float damping = 15f;
 
     [SerializeField] private Sprite EatingImage;
     [SerializeField] private Sprite ClosingImage;
 
-    [Header("Size and Bounce")]
-    [SerializeField, Range(0f, 80f)] private float maxBounceAngle = 45f;
-    [SerializeField, Min(0.1f)] private float bounceSpeed = 5f;
+    [Header("Bounce Sensors")]
+    // 子オブジェクトの位置とBoxCollider2D.sizeで、口の外側の救済範囲を調整する。
+    [SerializeField] private BoxCollider2D leftBounceSensor;
+    [SerializeField] private BoxCollider2D rightBounceSensor;
+    [SerializeField, Min(0.1f)] private float bounceSpeed = 5f; // 真上へ弾く初速（units/秒）。
 
     private SpriteRenderer myspriterenderer;
     private CapsuleCollider2D mouthCollider;
@@ -29,9 +33,9 @@ public class EaterCatchController : MonoBehaviour
     private float scaleMultiplier = 1f;
 
     private float scaleVelocity = 0f;
+    private readonly List<Collider2D> contacts = new List<Collider2D>();
 
     public event System.Action<ItemConsumption> ItemConsumed;
-    public float CurrentMouthWidth => mouthCollider != null ? mouthCollider.bounds.size.x : 0f;
 
     private void Awake()
     {
@@ -39,6 +43,7 @@ public class EaterCatchController : MonoBehaviour
             microphone = GetComponentInParent<MicrophoneAnalysis>();
         originalScale = transform.localScale;
         myspriterenderer = GetComponent<SpriteRenderer>();
+        // 基準の横幅と固定高さはEaterのCapsuleCollider2D.sizeで調整する。
         mouthCollider = GetComponent<CapsuleCollider2D>();
         mouthCollider.direction = CapsuleDirection2D.Horizontal;
     }
@@ -96,55 +101,24 @@ public class EaterCatchController : MonoBehaviour
         );
     }
 
-    
-    private void OnTriggerEnter2D(Collider2D other)
+    private void FixedUpdate()
     {
-        TryCatch(other);
-    }
-
-    private void OnTriggerStay2D(Collider2D other)
-    {
-        TryCatch(other);
-    }
-
-    private void OnTriggerExit2D(Collider2D other)
-    {
-        if (other != null)
-            other.GetComponentInParent<FallingObject>()?.ReleaseBounceContact(mouthCollider);
-    }
-
-
-    private void TryCatch(Collider2D other)
-    {
-        if (!isActiveAndEnabled || gameManager == null || other == null)
+        if (gameManager == null || ReadInputGain() <= mouthOpenThreshold || !mouthCollider.enabled)
             return;
 
-        // 通常は声、マウスデバッグ中は左ボタンを押している間だけ取れる。
-        if (ReadInputGain() <= mouthOpenThreshold)
-            return;
+        // 同じ果物が両方に触れても、取得を先に確定する。
+        mouthCollider.Overlap(ContactFilter2D.noFilter, contacts);
+        foreach (Collider2D other in contacts)
+            TryCatch(other.GetComponentInParent<CatchableItem>());
 
-        CatchableItem item =
-            other.GetComponentInParent<CatchableItem>();
+        BounceAt(leftBounceSensor);
+        BounceAt(rightBounceSensor);
+    }
 
+    private void TryCatch(CatchableItem item)
+    {
         if (item == null || item.Definition == null || item.IsConsumed)
             return;
-
-        FallingObject falling = item.GetComponent<FallingObject>();
-        if (falling != null && falling.IsRising)
-            return;
-
-        if (item.Category == ItemCategory.Fruit && item.CatchWidth > CurrentMouthWidth + 0.0001f)
-        {
-            if (falling != null && mouthCollider != null)
-            {
-                Bounds mouth = mouthCollider.bounds;
-                float hitOffset = Mathf.Clamp(
-                    (other.bounds.center.x - mouth.center.x) / Mathf.Max(0.001f, mouth.extents.x), -1f, 1f);
-                float angle = hitOffset * maxBounceAngle * Mathf.Deg2Rad;
-                falling.TryBounce(new Vector2(Mathf.Sin(angle), Mathf.Cos(angle)) * bounceSpeed, mouthCollider);
-            }
-            return;
-        }
 
         // 同じアイテムを複数回数えない
         if (!item.TryConsume(out ItemConsumption consumption))
@@ -167,6 +141,21 @@ public class EaterCatchController : MonoBehaviour
         gameManager.RegisterCatch(consumption.Category, consumption.ScoreDelta);
         ApplyItemEffect(consumption.Effect);
         ItemConsumed?.Invoke(consumption);
+    }
+
+    private void BounceAt(BoxCollider2D sensor)
+    {
+        if (sensor == null || !sensor.isActiveAndEnabled)
+            return;
+
+        sensor.Overlap(ContactFilter2D.noFilter, contacts);
+        foreach (Collider2D other in contacts)
+        {
+            CatchableItem item = other.GetComponentInParent<CatchableItem>();
+            if (item != null && item.Definition != null && !item.IsConsumed &&
+                item.Category == ItemCategory.Fruit)
+                item.GetComponent<FallingObject>()?.TryBounce(bounceSpeed);
+        }
     }
 
     private void ApplyItemEffect(ItemEffectType effect)

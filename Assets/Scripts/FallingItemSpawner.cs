@@ -17,6 +17,7 @@ public class FallingItemSpawner : MonoBehaviour
     [Range(0f, 1f)]
     [SerializeField] private float bugProbability = 0.2f;
 
+    // 生成時の下降速度の範囲（units/秒）。音程による倍率と上限はPitchFallSpeedControllerで調整。
     [SerializeField] private float minFallSpeed = 2f;
     [SerializeField] private float maxFallSpeed = 4f;
 
@@ -45,9 +46,9 @@ public class FallingItemSpawner : MonoBehaviour
     [SerializeField] private float feverItemCooldown = 15f;
 
     [Header("Fever Time")]
-    [SerializeField] private float feverDuration = 8f;
-    [SerializeField] private float feverSpawnInterval = 0.2f;
-    [SerializeField] private int feverFruitsPerSpawn = 2;
+    [SerializeField] private float feverDuration = 8f; // フィーバーの持続時間（秒）。
+    [SerializeField] private float feverSpawnInterval = 0.2f; // 生成間隔（秒）。
+    [SerializeField] private int feverFruitsPerSpawn = 2; // 一度に生成する果物の個数。
 
     private Camera mainCamera;
 
@@ -191,9 +192,8 @@ public class FallingItemSpawner : MonoBehaviour
             mainCamera.orthographicSize *
             mainCamera.aspect;
 
-        CatchableItem metadata = prefab.GetComponent<CatchableItem>();
         SpriteRenderer sprite = prefab.GetComponent<SpriteRenderer>();
-        float margin = metadata != null ? Mathf.Max(0.5f, metadata.CatchWidth * 0.5f) : 0.5f;
+        float margin = 0.5f;
         if (sprite != null && sprite.sprite != null)
             margin = Mathf.Max(margin, sprite.sprite.bounds.extents.x * Mathf.Abs(prefab.transform.localScale.x));
 
