@@ -2,6 +2,8 @@
 
 public class EaterCatchController : MonoBehaviour
 {
+    private const float MouthOpenThreshold = 0.1f;
+
     [SerializeField] private MicrophoneAnalysis microphone;
     [SerializeField] private GameManager gameManager;
     [SerializeField] private FallingItemSpawner fallingItemSpawner;
@@ -32,9 +34,7 @@ public class EaterCatchController : MonoBehaviour
 
     private void Update()
     {
-        if (microphone == null) return;
-
-        float gain = microphone.Gain;
+        float gain = ReadInputGain();
 
         // 音量の急激な変化を滑らかにする
         float smoothTime = gain > smoothedGain ? 0.05f : 0.15f;
@@ -44,7 +44,7 @@ public class EaterCatchController : MonoBehaviour
             gain,
             1f - Mathf.Exp(-Time.deltaTime / smoothTime)
         );
-        if (microphone.Gain < 0.1f)
+        if (gain <= MouthOpenThreshold)
         {
            myspriterenderer.sprite = ClosingImage;
         }
@@ -54,6 +54,18 @@ public class EaterCatchController : MonoBehaviour
             myspriterenderer.sprite = EatingImage;
         }
             BounceByGain(smoothedGain, ref scaleVelocity);
+    }
+
+    private float ReadInputGain()
+    {
+        if (MouseDebugInput.Enabled)
+        {
+            return MouseDebugInput.LeftButtonHeld
+                ? Mathf.Max(maxGain, MouthOpenThreshold + 0.01f)
+                : 0f;
+        }
+
+        return microphone != null ? microphone.Gain : 0f;
     }
 
     private void BounceByGain(float gain, ref float velocity)
@@ -97,11 +109,11 @@ public class EaterCatchController : MonoBehaviour
 
     private void TryCatch(Collider2D other)
     {
-        if (microphone == null || gameManager == null)
+        if (gameManager == null)
             return;
 
-        // 声を出していないと取れない
-        if (microphone.Gain <= 0.1f)
+        // 通常は声、マウスデバッグ中は左ボタンを押している間だけ取れる。
+        if (ReadInputGain() <= MouthOpenThreshold)
             return;
 
         CatchableItem item =

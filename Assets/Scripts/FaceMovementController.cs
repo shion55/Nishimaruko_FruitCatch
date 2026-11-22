@@ -77,6 +77,13 @@ public class FaceMovementController : MonoBehaviour
             }
         }
 
+        // デバッグ中も受信データを消費し、通常入力へ戻したときに古い位置を使わない。
+        if (MouseDebugInput.Enabled)
+        {
+            velocityX = 0f;
+            return;
+        }
+
         // 顔が見つからなくなったら停止
         if (!hasReceivedFace ||
             Time.time - lastReceivedTime > trackingTimeout)

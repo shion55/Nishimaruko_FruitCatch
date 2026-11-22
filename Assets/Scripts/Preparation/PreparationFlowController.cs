@@ -138,19 +138,23 @@ namespace FruitCatch.Preparation
 
         private void HandleDevelopmentInput()
         {
-            if (!developmentMode || Keyboard.current == null)
+            if (!developmentMode)
                 return;
 
-            if (Keyboard.current.spaceKey.wasPressedThisFrame)
+            Keyboard keyboard = Keyboard.current;
+
+            if ((keyboard != null && keyboard.spaceKey.wasPressedThisFrame) ||
+                MouseDebugInput.LeftButtonPressed)
                 AdvanceForDebug();
 
-            if (Keyboard.current.backspaceKey.wasPressedThisFrame)
+            if ((keyboard != null && keyboard.backspaceKey.wasPressedThisFrame) ||
+                MouseDebugInput.RightButtonPressed)
                 GoBackForDebug();
 
-            if (Keyboard.current.rKey.wasPressedThisFrame)
+            if (keyboard != null && keyboard.rKey.wasPressedThisFrame)
                 RestartForDebug();
 
-            if (Keyboard.current.cKey.wasPressedThisFrame)
+            if (keyboard != null && keyboard.cKey.wasPressedThisFrame)
                 SetSimulatedCameraAvailable(!simulatedCameraAvailable);
         }
 

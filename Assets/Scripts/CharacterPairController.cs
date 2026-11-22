@@ -16,6 +16,17 @@ public class CharacterPairController : MonoBehaviour
 
     private void Update()
     {
+        if (MouseDebugInput.Enabled)
+        {
+            if (MouseDebugInput.TryGetHorizontalPosition(mainCamera, horizontalMargin, out float mouseX))
+            {
+                Vector3 mousePosition = transform.position;
+                mousePosition.x = mouseX;
+                transform.position = mousePosition;
+            }
+            return;
+        }
+
         Keyboard keyboard = Keyboard.current;
 
         if (keyboard == null) return;

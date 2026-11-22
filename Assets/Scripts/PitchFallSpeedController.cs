@@ -42,7 +42,12 @@ public class PitchFallSpeedController : MonoBehaviour
             ? microphone.PitchHz
             : 0f;
 
-        if (pitch > 0f)
+        if (MouseDebugInput.Enabled)
+        {
+            targetMultiplier = MouseDebugInput.RightButtonHeld ? minSpeedMultiplier : 1f;
+            lastPitchTime = -Mathf.Infinity;
+        }
+        else if (pitch > 0f)
         {
             lastPitchTime = Time.time;
 
