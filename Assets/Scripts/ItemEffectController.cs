@@ -12,7 +12,7 @@ public sealed class ItemEffectController : MonoBehaviour
     [SerializeField, Range(0.1f, 0.9f)] private float landingWidthRatio = 0.3f; // 半画面幅に対する着地先の距離。
     [SerializeField, Min(0.1f)] private float throwDuration = 0.7f; // 投擲時間（秒）。
     [SerializeField, Min(0f)] private float throwHeight = 1.2f; // 弧の高さ（units）。
-    [SerializeField, Min(0)] private int burstFruitCount = 5;
+    [SerializeField, Min(0)] private int burstFruitCount = 12; // 壁到達時に画面全体へ追加する個数。
     [Header("Wall Impact")]
     [SerializeField, Min(0f)] private float shakeDuration = 0.35f; // 画面揺れ（秒）。
     [SerializeField, Min(0f)] private float shakeAmplitude = 0.12f; // カメラの揺れ幅（units）。

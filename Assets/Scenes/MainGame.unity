@@ -1155,11 +1155,11 @@ MonoBehaviour:
     bananaSlots: 0
     chiliSlots: 0
     bugSlots: 0
-  maxActiveItems: 18
+  maxActiveItems: 48
   effectItemSpacing: {x: 4, y: 5}
   specialItemSpacing: 1
   firstFeverWindow: {x: 37, y: 38}
-  feverFruitsPerSecond: 2.8
+  feverFruitsPerSecond: 10
   intervalJitter: {x: 0.8, y: 1.2}
   minFallSpeed: 5
   maxFallSpeed: 10
@@ -1199,7 +1199,7 @@ MonoBehaviour:
   landingWidthRatio: 0.3
   throwDuration: 0.7
   throwHeight: 1.2
-  burstFruitCount: 5
+  burstFruitCount: 12
   shakeDuration: 0.35
   shakeAmplitude: 0.12
 --- !u!1 &581647224

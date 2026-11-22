@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
-public enum SpawnPlacement { Center, WideAlternating, AlternatingPairs, Easy }
+public enum SpawnPlacement { Center, WideAlternating, AlternatingPairs, Easy, FullWidth }
 
 [Serializable]
 public sealed class SpawnPhaseSettings
@@ -49,11 +49,11 @@ public class FallingItemSpawner : MonoBehaviour
         new SpawnPhaseSettings("フィーバー導入", 41f, 1f, SpawnPlacement.Easy),
         new SpawnPhaseSettings("フィナーレ", 50f, 1f, SpawnPlacement.Easy)
     };
-    [SerializeField, Min(1)] private int maxActiveItems = 18; // 弾き上げ・追加落下を含む共通上限（個）。
+    [SerializeField, Min(1)] private int maxActiveItems = 48; // 弾き上げ・追加落下を含む共通上限（個）。
     [SerializeField] private Vector2 effectItemSpacing = new Vector2(4f, 5f); // 効果アイテムの生成間隔（秒）。
     [SerializeField, Min(0f)] private float specialItemSpacing = 1f; // 虫を含む特殊枠の最小間隔（秒）。
     [SerializeField] private Vector2 firstFeverWindow = new Vector2(37f, 38f); // 初回フィーバー果物の予定時刻（秒）。
-    [SerializeField, Min(0.01f)] private float feverFruitsPerSecond = 2.8f;
+    [SerializeField, Min(0.01f)] private float feverFruitsPerSecond = 10f; // フィーバー中の平均生成数（個/秒）。
     [SerializeField] private Vector2 intervalJitter = new Vector2(0.8f, 1.2f); // 平均間隔に掛けるランダム倍率。
     [SerializeField] private float minFallSpeed = 2f; // 下降速度（units/秒）。
     [SerializeField] private float maxFallSpeed = 4f;
@@ -132,7 +132,7 @@ public class FallingItemSpawner : MonoBehaviour
         TrySpawnSpecial();
         if (ElapsedTime >= nextFruitTime)
         {
-            SpawnItem(RandomFruit(), CurrentPhase.placement);
+            SpawnItem(RandomFruit(), IsFever ? SpawnPlacement.FullWidth : CurrentPhase.placement);
             // 上限やフレーム遅延で見送った分は蓄積しない。
             nextFruitTime = ElapsedTime + GetFruitInterval();
         }
@@ -272,6 +272,9 @@ public class FallingItemSpawner : MonoBehaviour
                     ? (placementIndex % 4 == 0 ? -1f : 1f) * Random.Range(limit * 0.3f, limit * 0.7f)
                     : Mathf.Clamp(previousX + Random.Range(-0.8f, 0.8f), -limit, limit);
                 break;
+            case SpawnPlacement.FullWidth:
+                x = Random.Range(-limit, limit);
+                break;
             default:
                 float target = itemEffects != null ? itemEffects.CharacterX - mainCamera.transform.position.x : 0f;
                 x = Mathf.Clamp(target + Random.Range(-limit * 0.2f, limit * 0.2f), -limit, limit);
@@ -300,7 +303,7 @@ public class FallingItemSpawner : MonoBehaviour
     {
         int spawned = 0;
         for (int i = 0; i < count && SpawningEnabled && ActiveItemCount < maxActiveItems; i++)
-            if (SpawnItem(RandomFruit(), SpawnPlacement.WideAlternating) != null) spawned++;
+            if (SpawnItem(RandomFruit(), SpawnPlacement.FullWidth) != null) spawned++;
         return spawned;
     }
 

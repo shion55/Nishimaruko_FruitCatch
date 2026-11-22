@@ -24,6 +24,7 @@ public static class SpawnFlowVerification
         {
             VerifySchedule(source);
             VerifyRetryAndCap(source);
+            VerifyDenseRain(source);
             await VerifyEffects(source);
             return new { passed = checks.Count, checks };
         }
@@ -171,7 +172,7 @@ public static class SpawnFlowVerification
             spawner.AdvanceTo(48f);
             spawner.StartFever();
             Require(Mathf.Approximately(spawner.FeverRemainingTime, 2f) && feverCount == 2 &&
-                Mathf.Approximately(spawner.CurrentFruitRate, 2.8f), "フィーバーが延長されるか、果物の頻度が変わりません。");
+                Mathf.Approximately(spawner.CurrentFruitRate, 10f), "フィーバーが延長されるか、果物の頻度が変わりません。");
             spawner.AdvanceTo(50f);
             Require(!spawner.IsFever && spawner.SpawnBananaBurst(5) == 0 && spawner.ActiveItemCount == 0, "終了後に生成・効果が残ります。");
         }
@@ -195,6 +196,34 @@ public static class SpawnFlowVerification
         }
         finally { UnityEngine.Object.DestroyImmediate(root); }
         checks.Add("滞留・フィーバー・大量追加落下にも共通上限を適用");
+    }
+
+    private static void VerifyDenseRain(FallingItemSpawner source)
+    {
+        var spawner = Fixture(source, out GameObject root);
+        try
+        {
+            UnityEngine.Random.InitState(1234);
+            var positions = new List<float>();
+            spawner.ItemSpawned += item => positions.Add(item.transform.position.x - Camera.main.transform.position.x);
+            spawner.BeginRun(50f);
+            spawner.StartFever();
+            for (int i = 0; i < 400; i++) spawner.AdvanceTo(i * 0.01f);
+            float halfWidth = Camera.main.orthographicSize * Camera.main.aspect;
+            Require(positions.Count >= 35 && positions.Count <= 42, "フィーバーが約10個/秒になっていません。");
+            Require(positions.Min() < -halfWidth * 0.65f && positions.Max() > halfWidth * 0.65f,
+                "フィーバーが画面全体に広がっていません。");
+            Require(spawner.ActiveItemCount <= spawner.MaxActiveItems && spawner.MaxActiveItems == 48,
+                "増量用の共通上限が適用されていません。");
+            spawner.SetSpawningEnabled(false);
+            positions.Clear();
+            spawner.BeginRun(50f);
+            Require(spawner.SpawnBananaBurst(12) == 12 && positions.Count == 12, "バナナの追加落下を12個生成できません。");
+            Require(positions.Min() < -halfWidth * 0.5f && positions.Max() > halfWidth * 0.5f,
+                "バナナの追加落下が画面全体に広がっていません。");
+            checks.Add("フィーバー約10個/秒・バナナ12個を画面全体に分散し、共通上限48個を守る");
+        }
+        finally { UnityEngine.Object.DestroyImmediate(root); }
     }
 
     private static async Task VerifyEffects(FallingItemSpawner source)
@@ -264,12 +293,12 @@ public static class SpawnFlowVerification
             Require(!effects.HasBananaPeel && effects.IsChiliActive, "踏んだ皮の消費または唐辛子タイマーの維持が不正です。");
             int before = spawned.Count;
             await Wait.Until(() => !movement.IsSliding, timeoutMs: 3000);
-            Require(spawned.Count - before == 5, "壁到達時の追加生成が一度だけ発生しません。");
+            Require(spawned.Count - before == 12, "壁到達時の追加生成が一度だけ発生しません。");
             Require(Mathf.Sign(movement.transform.position.x - Camera.main.transform.position.x) == Mathf.Sign(landedX - Camera.main.transform.position.x),
                 "皮と反対側の壁へ滑りました。");
             Require(effects.IsChiliActive, "滑走後に唐辛子の残り時間が失われました。");
             await Advance(0.2f);
-            Require(spawned.Count - before == 5, "壁の追加落下が繰り返されました。");
+            Require(spawned.Count - before == 12, "壁の追加落下が繰り返されました。");
             checks.Add("皮の投擲・着地・踏み判定・皮側の壁への滑走・一度だけの追加落下");
             checks.Add("滑走中も唐辛子の時間が進み、滑走終了後に残り効果へ復帰");
             effects.StopEffects();
