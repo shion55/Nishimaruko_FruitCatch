@@ -77,19 +77,20 @@ public static class ItemFoundationVerification
                 "虫の減点以外の状態が変化しました。");
             checks.Add("虫は1回だけ減点し、落下速度と効果を変更しない");
 
+            spawner.AdvanceTo(43f);
             var fever = CreateItem("FeverFruit", fixture.transform, ItemKind.FeverFruit, 10);
             await Advance();
             Require(manager.Score == 15 && manager.FruitCount == 2 && consumptions.Count == 3 &&
                     consumptions[2].Effect == ItemEffectType.Fever && spawner.IsFever &&
-                    Mathf.Approximately(spawner.FeverRemainingTime, 8f),
+                    Mathf.Approximately(spawner.FeverRemainingTime, 7f),
                 "フィーバー果物の取得結果が正しくありません。");
             spawner.StartFever();
-            Require(Mathf.Approximately(spawner.FeverRemainingTime, 8f), "フィーバー時間が重複加算されました。");
+            Require(Mathf.Approximately(spawner.FeverRemainingTime, 7f), "フィーバー時間が重複加算されました。");
             spawner.SetSpawningEnabled(false);
             spawner.StartFever();
             Require(!spawner.IsFever && spawner.FeverRemainingTime == 0f,
                 "生成停止後にフィーバーが残るか、再開しました。");
-            checks.Add("フィーバーは定義から発動し、再取得で更新、生成停止で解除する");
+            checks.Add("フィーバーは定義から発動し、本編終了時刻を維持、生成停止で解除する");
 
             var ignored = CreateItem("Fruit", fixture.transform, ItemKind.Fruit, 10);
             eater.enabled = false;

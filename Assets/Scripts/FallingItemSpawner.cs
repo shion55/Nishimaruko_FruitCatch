@@ -1,249 +1,335 @@
-﻿
+using System;
+using System.Collections.Generic;
 using UnityEngine;
+using Random = UnityEngine.Random;
+
+public enum SpawnPlacement { Center, WideAlternating, AlternatingPairs, Easy }
+
+[Serializable]
+public sealed class SpawnPhaseSettings
+{
+    public string label;
+    [Min(0f)] public float endTime; // 本編開始からの終了時刻（秒）。
+    [Min(0.01f)] public float fruitsPerSecond;
+    public SpawnPlacement placement;
+    [Min(0)] public int bananaSlots;
+    [Min(0)] public int chiliSlots;
+    [Min(0)] public int bugSlots;
+
+    public SpawnPhaseSettings(string label, float end, float rate, SpawnPlacement placement,
+        int bananas = 0, int chilies = 0, int bugs = 0)
+    {
+        this.label = label;
+        endTime = end;
+        fruitsPerSecond = rate;
+        this.placement = placement;
+        bananaSlots = bananas;
+        chiliSlots = chilies;
+        bugSlots = bugs;
+    }
+}
 
 public class FallingItemSpawner : MonoBehaviour
 {
     [Header("Prefabs")]
-    [SerializeField] private GameObject fruitPrefab;
+    [SerializeField] private GameObject[] fruitPrefabs;
     [SerializeField] private GameObject bugPrefab;
+    [SerializeField] private GameObject bananaPrefab;
+    [SerializeField] private GameObject chiliPrefab;
     [SerializeField] private GameObject feverItemPrefab;
+    [SerializeField] private Transform itemParent;
+    [SerializeField] private ItemEffectController itemEffects;
 
-    [Header("Item Parents")]
-    [SerializeField] private Transform fruitParent;
-    [SerializeField] private Transform bugParent;
-    [SerializeField] private Transform feverItemParent;
-
-    [Header("Normal")]
-    [Range(0f, 1f)]
-    [SerializeField] private float bugProbability = 0.2f;
-
-    // 生成時の下降速度の範囲（units/秒）。音程による倍率と上限はPitchFallSpeedControllerで調整。
-    [SerializeField] private float minFallSpeed = 2f;
+    [Header("50 Second Flow")]
+    [SerializeField] private SpawnPhaseSettings[] phases =
+    {
+        new SpawnPhaseSettings("導入", 10f, 0.8f, SpawnPlacement.Center),
+        new SpawnPhaseSettings("ハプニング", 24f, 1.1f, SpawnPlacement.WideAlternating, 1, 1, 3),
+        new SpawnPhaseSettings("協力", 37f, 1.4f, SpawnPlacement.AlternatingPairs, 1, 1, 3),
+        new SpawnPhaseSettings("フィーバー導入", 41f, 1f, SpawnPlacement.Easy),
+        new SpawnPhaseSettings("フィナーレ", 50f, 1f, SpawnPlacement.Easy)
+    };
+    [SerializeField, Min(1)] private int maxActiveItems = 18; // 弾き上げ・追加落下を含む共通上限（個）。
+    [SerializeField] private Vector2 effectItemSpacing = new Vector2(4f, 5f); // 効果アイテムの生成間隔（秒）。
+    [SerializeField, Min(0f)] private float specialItemSpacing = 1f; // 虫を含む特殊枠の最小間隔（秒）。
+    [SerializeField] private Vector2 firstFeverWindow = new Vector2(37f, 38f); // 初回フィーバー果物の予定時刻（秒）。
+    [SerializeField, Min(0.01f)] private float feverFruitsPerSecond = 2.8f;
+    [SerializeField] private Vector2 intervalJitter = new Vector2(0.8f, 1.2f); // 平均間隔に掛けるランダム倍率。
+    [SerializeField] private float minFallSpeed = 2f; // 下降速度（units/秒）。
     [SerializeField] private float maxFallSpeed = 4f;
 
-    [Header("Calm Phase")]
-    [SerializeField]
-    private Vector2 calmDuration =
-        new Vector2(5f, 8f);
+    private sealed class Slot
+    {
+        public ItemKind kind;
+        public float due;
+        public float deadline;
+    }
 
-    [SerializeField]
-    private Vector2 calmInterval =
-        new Vector2(0.9f, 1.4f);
-
-    [Header("Rush Phase")]
-    [SerializeField]
-    private Vector2 rushDuration =
-        new Vector2(3f, 5f);
-
-    [SerializeField]
-    private Vector2 rushInterval =
-        new Vector2(0.25f, 0.45f);
-
-    [Header("Fever Item")]
-    [Range(0f, 1f)]
-    [SerializeField] private float feverItemProbability = 0.06f;
-
-    [SerializeField] private float feverItemCooldown = 15f;
-
-    [Header("Fever Time")]
-    [SerializeField] private float feverDuration = 8f; // フィーバーの持続時間（秒）。
-    [SerializeField] private float feverSpawnInterval = 0.2f; // 生成間隔（秒）。
-    [SerializeField] private int feverFruitsPerSpawn = 2; // 一度に生成する果物の個数。
-
+    private readonly List<Slot> slots = new List<Slot>();
+    private readonly List<CatchableItem> activeItems = new List<CatchableItem>();
     private Camera mainCamera;
+    private float runDuration = 50f;
+    private float nextFruitTime;
+    private float nextEffectTime;
+    private float nextSpecialTime;
+    private float nextFeverTime;
+    private bool fever;
+    private int placementIndex;
+    private float previousX;
 
-    private float spawnTimer;
-    private float phaseTimer;
-    private readonly TemporaryEffectTimer feverTimer = new TemporaryEffectTimer();
-    private float feverItemCooldownTimer;
+    public bool SpawningEnabled { get; private set; }
+    public float ElapsedTime { get; private set; }
+    public int CurrentPhaseIndex { get; private set; }
+    public bool IsFever => SpawningEnabled && fever;
+    public float FeverRemainingTime => IsFever ? Mathf.Max(0f, runDuration - ElapsedTime) : 0f;
+    public float CurrentFruitRate => IsFever ? feverFruitsPerSecond : CurrentPhase.fruitsPerSecond;
+    public int ActiveItemCount { get { PruneItems(); return activeItems.Count; } }
+    public int MaxActiveItems => maxActiveItems;
+    public event Action<CatchableItem> ItemSpawned;
 
-    private bool isRush;
-    private bool spawningEnabled = true;
+    private SpawnPhaseSettings CurrentPhase => phases[CurrentPhaseIndex];
 
-    public bool IsFever => feverTimer.IsActive;
-    public float FeverRemainingTime => feverTimer.Remaining;
-    public bool SpawningEnabled => spawningEnabled;
-
-    public bool isFall;
-    private void Start()
+    public void BeginRun(float duration)
     {
+        SetSpawningEnabled(false);
         mainCamera = Camera.main;
-        SetPhase(false);
+        runDuration = Mathf.Max(0f, duration);
+        ElapsedTime = 0f;
+        CurrentPhaseIndex = 0;
+        placementIndex = 0;
+        previousX = 0f;
+        nextEffectTime = nextSpecialTime = 0f;
+        nextFeverTime = RandomRange(firstFeverWindow);
+        BuildSlots();
+        SpawningEnabled = runDuration > 0f;
+        nextFruitTime = GetFruitInterval();
     }
 
-    private void Update()
+    // セッションの時計で進行する。落下の減速や得点から独立させる。
+    public void AdvanceTo(float elapsed)
     {
-        if (!spawningEnabled)
+        if (!SpawningEnabled)
             return;
 
-        float dt = Time.deltaTime;
-        if (!isFall) 
-            return;
-
-        feverItemCooldownTimer = Mathf.Max(
-            0f, feverItemCooldownTimer - dt
-        );
-
-        // フィーバー中は果物だけ生成
-        if (IsFever)
+        ElapsedTime = Mathf.Clamp(elapsed, ElapsedTime, runDuration);
+        if (ElapsedTime >= runDuration)
         {
-            feverTimer.Tick(dt);
-            spawnTimer -= dt;
+            SetSpawningEnabled(false);
+            return;
+        }
 
-            if (spawnTimer <= 0f)
+        int phase = 0;
+        while (phase < phases.Length - 1 && ElapsedTime >= phases[phase].endTime)
+            phase++;
+        if (CurrentPhaseIndex != phase)
+        {
+            CurrentPhaseIndex = phase;
+            placementIndex = 0;
+            nextFruitTime = ElapsedTime + GetFruitInterval();
+        }
+
+        PruneItems();
+        TrySpawnSpecial();
+        if (ElapsedTime >= nextFruitTime)
+        {
+            SpawnItem(RandomFruit(), CurrentPhase.placement);
+            // 上限やフレーム遅延で見送った分は蓄積しない。
+            nextFruitTime = ElapsedTime + GetFruitInterval();
+        }
+    }
+
+    private void BuildSlots()
+    {
+        slots.Clear();
+        float start = 0f;
+        foreach (SpawnPhaseSettings phase in phases)
+        {
+            var kinds = new List<ItemKind>();
+            for (int i = 0; i < phase.bananaSlots; i++) kinds.Add(ItemKind.Banana);
+            for (int i = 0; i < phase.chiliSlots; i++) kinds.Add(ItemKind.Chili);
+            for (int i = kinds.Count - 1; i > 0; i--)
             {
-                for (int i = 0; i < feverFruitsPerSpawn; i++)
-                {
-                    SpawnItem(fruitPrefab, fruitParent);
-                }
-
-                spawnTimer = Mathf.Max(
-                    0.05f, feverSpawnInterval
-                );
+                int j = Random.Range(0, i + 1);
+                (kinds[i], kinds[j]) = (kinds[j], kinds[i]);
             }
-
-            if (!IsFever)
+            float gap = RandomRange(effectItemSpacing);
+            float latestFirst = phase.endTime - 1f - gap * Mathf.Max(0, kinds.Count - 1);
+            float time = Random.Range(start + 0.5f, Mathf.Max(start + 0.5f, latestFirst));
+            foreach (ItemKind kind in kinds)
             {
-                SetPhase(false);
-                Debug.Log("FEVER END");
+                slots.Add(new Slot { kind = kind, due = time, deadline = phase.endTime });
+                time += gap;
             }
+            for (int i = 0; i < phase.bugSlots; i++)
+            {
+                float fraction = (i + Random.Range(0.2f, 0.8f)) / phase.bugSlots;
+                slots.Add(new Slot { kind = ItemKind.Bug,
+                    due = Mathf.Lerp(start + 0.5f, phase.endTime - 1f, fraction), deadline = phase.endTime });
+            }
+            start = phase.endTime;
+        }
+        slots.Sort((a, b) => a.due.CompareTo(b.due));
+    }
 
+    private void TrySpawnSpecial()
+    {
+        slots.RemoveAll(s => ElapsedTime >= s.deadline);
+        if (IsFever || ElapsedTime < nextSpecialTime || ActiveItemCount >= maxActiveItems)
+            return;
+
+        // フィーバー果物の枠は取得まで存続し、常に1個だけを落とす。
+        if (ElapsedTime >= nextFeverTime && ElapsedTime >= nextEffectTime && !HasItem(ItemKind.FeverFruit))
+        {
+            if (SpawnItem(feverItemPrefab, SpawnPlacement.Easy) != null)
+                RecordSpecial(ItemKind.FeverFruit);
             return;
         }
 
-        // 通常時：緩急を切り替える
-        phaseTimer -= dt;
-
-        if (phaseTimer <= 0f)
-        {
-            SetPhase(!isRush);
-        }
-
-        spawnTimer -= dt;
-
-        if (spawnTimer <= 0f)
-        {
-            SpawnNormalItem();
-            spawnTimer = GetSpawnInterval();
-        }
-    }
-
-    private void SetPhase(bool rush)
-    {
-        isRush = rush;
-
-        phaseTimer = Mathf.Max(
-            0.1f,
-            RandomRange(isRush ? rushDuration : calmDuration)
-        );
-
-        spawnTimer = GetSpawnInterval();
-    }
-
-    private float GetSpawnInterval()
-    {
-        return Mathf.Max(
-            0.05f,
-            RandomRange(isRush ? rushInterval : calmInterval)
-        );
-    }
-
-    private float RandomRange(Vector2 range)
-    {
-        return Random.Range(
-            Mathf.Min(range.x, range.y),
-            Mathf.Max(range.x, range.y)
-        );
-    }
-
-    private void SpawnNormalItem()
-    {
-        // 特別なアイテムを低確率で出現させる
-        if (feverItemPrefab != null &&
-            feverItemCooldownTimer <= 0f &&
-            Random.value < feverItemProbability)
-        {
-            SpawnItem(feverItemPrefab, feverItemParent);
-
-            feverItemCooldownTimer =
-                Mathf.Max(0f, feverItemCooldown);
-
+        if (itemEffects != null && itemEffects.IsChiliActive)
             return;
-        }
-
-        bool isBug = Random.value < bugProbability;
-
-        if (isBug)
+        for (int i = 0; i < slots.Count; i++)
         {
-            SpawnItem(bugPrefab, bugParent);
-        }
-        else
-        {
-            SpawnItem(fruitPrefab, fruitParent);
+            Slot slot = slots[i];
+            if (slot.due > ElapsedTime)
+                break;
+            if (slot.kind != ItemKind.Bug && ElapsedTime < nextEffectTime)
+                continue;
+            if (slot.kind == ItemKind.Banana &&
+                (HasItem(ItemKind.Banana) || (itemEffects != null && itemEffects.HasBananaPeel)))
+                continue;
+            GameObject prefab = slot.kind == ItemKind.Bug ? bugPrefab :
+                slot.kind == ItemKind.Banana ? bananaPrefab : chiliPrefab;
+            if (SpawnItem(prefab, CurrentPhase.placement) == null)
+                continue;
+            slots.RemoveAt(i);
+            RecordSpecial(slot.kind);
+            break;
         }
     }
 
-    private void SpawnItem(GameObject prefab, Transform parent)
+    private void RecordSpecial(ItemKind kind)
     {
-        if (mainCamera == null || prefab == null)
-            return;
+        nextSpecialTime = ElapsedTime + Mathf.Max(0f, specialItemSpacing);
+        if (kind != ItemKind.Bug)
+            nextEffectTime = ElapsedTime + RandomRange(effectItemSpacing);
+        if (kind == ItemKind.FeverFruit)
+            nextFeverTime = nextEffectTime;
+    }
 
-        float halfWidth =
-            mainCamera.orthographicSize *
-            mainCamera.aspect;
+    private bool HasItem(ItemKind kind)
+    {
+        foreach (CatchableItem item in activeItems)
+            if (item != null && !item.IsConsumed && item.Kind == kind)
+                return true;
+        return false;
+    }
+
+    private void PruneItems()
+    {
+        activeItems.RemoveAll(i => i == null || i.IsConsumed || !i.gameObject.activeInHierarchy);
+    }
+
+    private float GetFruitInterval()
+    {
+        return Mathf.Max(0.05f, RandomRange(intervalJitter) / Mathf.Max(0.01f, CurrentFruitRate));
+    }
+
+    private static float RandomRange(Vector2 range)
+    {
+        return Random.Range(Mathf.Min(range.x, range.y), Mathf.Max(range.x, range.y));
+    }
+
+    private GameObject RandomFruit()
+    {
+        return fruitPrefabs != null && fruitPrefabs.Length > 0
+            ? fruitPrefabs[Random.Range(0, fruitPrefabs.Length)] : null;
+    }
+
+    private CatchableItem SpawnItem(GameObject prefab, SpawnPlacement placement)
+    {
+        if (!SpawningEnabled || prefab == null || ActiveItemCount >= maxActiveItems)
+            return null;
+        if (mainCamera == null)
+            mainCamera = Camera.main;
+        if (mainCamera == null)
+            return null;
 
         SpriteRenderer sprite = prefab.GetComponent<SpriteRenderer>();
-        float margin = 0.5f;
-        if (sprite != null && sprite.sprite != null)
-            margin = Mathf.Max(margin, sprite.sprite.bounds.extents.x * Mathf.Abs(prefab.transform.localScale.x));
-
-        float x = Random.Range(
-            -Mathf.Max(0f, halfWidth - margin),
-            Mathf.Max(0f, halfWidth - margin)
-        );
-
-        float y = mainCamera.orthographicSize + 1f;
-
-        Vector3 spawnPosition =
-            mainCamera.transform.position +
-            new Vector3(x, y, 10f);
-
-        // 指定された親の下に生成
-        GameObject item = Instantiate(
-            prefab,
-            spawnPosition,
-            Quaternion.identity,
-            parent
-        );
-
-        FallingObject falling =
-            item.GetComponent<FallingObject>();
-
-        if (falling != null)
+        float margin = sprite != null && sprite.sprite != null
+            ? Mathf.Max(0.5f, sprite.sprite.bounds.extents.x * Mathf.Abs(prefab.transform.localScale.x)) : 0.5f;
+        float limit = Mathf.Max(0f, mainCamera.orthographicSize * mainCamera.aspect - margin);
+        float x;
+        switch (placement)
         {
-            falling.SetSpeed(
-                Random.Range(minFallSpeed, maxFallSpeed)
-            );
+            case SpawnPlacement.Center:
+                x = Random.Range(-limit * 0.35f, limit * 0.35f);
+                break;
+            case SpawnPlacement.WideAlternating:
+                x = (placementIndex % 2 == 0 ? -1f : 1f) * Random.Range(limit * 0.3f, limit * 0.75f);
+                break;
+            case SpawnPlacement.AlternatingPairs:
+                x = placementIndex % 2 == 0
+                    ? (placementIndex % 4 == 0 ? -1f : 1f) * Random.Range(limit * 0.3f, limit * 0.7f)
+                    : Mathf.Clamp(previousX + Random.Range(-0.8f, 0.8f), -limit, limit);
+                break;
+            default:
+                float target = itemEffects != null ? itemEffects.CharacterX - mainCamera.transform.position.x : 0f;
+                x = Mathf.Clamp(target + Random.Range(-limit * 0.2f, limit * 0.2f), -limit, limit);
+                break;
         }
+        previousX = x;
+        placementIndex++;
+        Vector3 position = new Vector3(mainCamera.transform.position.x + x,
+            mainCamera.transform.position.y + mainCamera.orthographicSize + 1f, 0f);
+        GameObject go = Instantiate(prefab, position, Quaternion.identity, itemParent);
+        var item = go.GetComponent<CatchableItem>();
+        if (item == null)
+        {
+            Destroy(go);
+            return null;
+        }
+        activeItems.Add(item);
+        var falling = go.GetComponent<FallingObject>();
+        if (falling != null)
+            falling.SetSpeed(Random.Range(Mathf.Min(minFallSpeed, maxFallSpeed), Mathf.Max(minFallSpeed, maxFallSpeed)));
+        ItemSpawned?.Invoke(item);
+        return item;
     }
 
-    // 特別なアイテムを取得したときに呼び出す
+    public int SpawnBananaBurst(int count)
+    {
+        int spawned = 0;
+        for (int i = 0; i < count && SpawningEnabled && ActiveItemCount < maxActiveItems; i++)
+            if (SpawnItem(RandomFruit(), SpawnPlacement.WideAlternating) != null) spawned++;
+        return spawned;
+    }
+
     public void StartFever()
     {
-        if (!spawningEnabled || !isFall)
+        if (!SpawningEnabled || IsFever || ElapsedTime >= runDuration)
             return;
-
-        feverTimer.Refresh(Mathf.Max(0.1f, feverDuration));
-        spawnTimer = 0f;
-
-        Debug.Log("FEVER START!");
+        fever = true;
+        slots.Clear();
+        nextFruitTime = ElapsedTime;
     }
 
     public void SetSpawningEnabled(bool value)
     {
-        spawningEnabled = value;
-        isFall = value;
-        if (!value)
-            feverTimer.Clear();
+        if (value) { BeginRun(runDuration); return; }
+        SpawningEnabled = false;
+        fever = false;
+        slots.Clear();
+        foreach (CatchableItem item in activeItems)
+        {
+            if (item == null) continue;
+            item.gameObject.SetActive(false);
+            Destroy(item.gameObject);
+        }
+        activeItems.Clear();
+    }
+
+    private void OnDisable()
+    {
+        SetSpawningEnabled(false);
     }
 }

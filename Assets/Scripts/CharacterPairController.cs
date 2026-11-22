@@ -1,4 +1,4 @@
-﻿
+
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -8,6 +8,25 @@ public class CharacterPairController : MonoBehaviour
     [SerializeField, Min(0f)] private float moveSpeed = 5f; // 横移動速度の上限（units/秒）。
     [SerializeField, Min(0.01f)] private float followSmoothTime = 0.2f; // 追従の滑らかさ（秒）。大きいほど緩やか。
     [SerializeField, Min(0f)] private float horizontalMargin = 0.7f;
+
+    [Header("Chili")]
+    [SerializeField, Min(0.1f)] private float chiliDuration = 5f; // 効果時間（秒）。
+    [SerializeField, Min(1f)] private float chiliSpeedMultiplier = 1.6f;
+    [SerializeField, Min(0f)] private float chiliSwayAmplitude = 0.45f; // 自動揺れの幅（units）。
+    [SerializeField, Min(0f)] private float chiliSwayFrequency = 2f; // 自動揺れの周波数（Hz）。
+    [Header("Banana Slide")]
+    [SerializeField, Min(0.1f)] private float slideSpeed = 12f; // 壁への滑走速度（units/秒）。
+
+    private readonly TemporaryEffectTimer chiliTimer = new TemporaryEffectTimer();
+    private float swayTime;
+    private float swayOffset;
+    private int slideDirection;
+    private bool movementEnabled = true;
+    public bool IsChiliActive => chiliTimer.IsActive;
+    public float ChiliRemainingTime => chiliTimer.Remaining;
+    public bool IsSliding => slideDirection != 0;
+    public event System.Action ReachedBananaWall;
+    private float EffectiveMoveSpeed => moveSpeed * (IsChiliActive ? chiliSpeedMultiplier : 1f);
 
     private enum InputSource
     {
@@ -36,6 +55,34 @@ public class CharacterPairController : MonoBehaviour
 
     private void Update()
     {
+        if (!movementEnabled || Time.deltaTime <= 0f)
+            return;
+        RemoveSwayOffset();
+        chiliTimer.Tick(Time.deltaTime);
+        swayTime += Time.deltaTime;
+        if (IsSliding)
+        {
+            SetInputSource(InputSource.None);
+            float wall = mainCamera.transform.position.x + slideDirection * GetHorizontalLimit();
+            SetPositionX(Mathf.MoveTowards(transform.position.x, wall, slideSpeed * Time.deltaTime));
+            if (Mathf.Abs(transform.position.x - wall) < 0.001f)
+            {
+                slideDirection = 0;
+                ReachedBananaWall?.Invoke();
+            }
+            return;
+        }
+        UpdateInputMovement();
+        if (IsChiliActive)
+        {
+            float before = transform.position.x;
+            SetPositionX(before + Mathf.Sin(swayTime * chiliSwayFrequency * Mathf.PI * 2f) * chiliSwayAmplitude);
+            swayOffset = transform.position.x - before;
+        }
+    }
+
+    private void UpdateInputMovement()
+    {
         if (Time.deltaTime <= 0f)
             return;
 
@@ -63,7 +110,7 @@ public class CharacterPairController : MonoBehaviour
         {
             // キーを押している間は顔入力より優先し、同じ座標を上書きしない。
             SetInputSource(InputSource.Keyboard);
-            SetPositionX(transform.position.x + keyboardInput * moveSpeed * Time.deltaTime);
+            SetPositionX(transform.position.x + keyboardInput * EffectiveMoveSpeed * Time.deltaTime);
             return;
         }
 
@@ -75,6 +122,49 @@ public class CharacterPairController : MonoBehaviour
 
         // 顔の追跡切れやマウスの範囲外では、慣性を残さず停止する。
         SetInputSource(InputSource.None);
+    }
+
+    public void StartChili()
+    {
+        if (movementEnabled)
+            chiliTimer.Refresh(chiliDuration);
+    }
+
+    public void StartBananaSlide(int direction)
+    {
+        if (!movementEnabled || direction == 0 || mainCamera == null)
+            return;
+        RemoveSwayOffset();
+        slideDirection = direction < 0 ? -1 : 1;
+        SetInputSource(InputSource.None);
+    }
+
+    public void SetMovementEnabled(bool value)
+    {
+        movementEnabled = value;
+        StopTemporaryEffects();
+    }
+
+    public void StopTemporaryEffects()
+    {
+        RemoveSwayOffset();
+        chiliTimer.Clear();
+        slideDirection = 0;
+        SetInputSource(InputSource.None);
+    }
+
+    private void RemoveSwayOffset()
+    {
+        if (swayOffset != 0f)
+        {
+            SetPositionX(transform.position.x - swayOffset);
+            swayOffset = 0f;
+        }
+    }
+
+    private void OnDisable()
+    {
+        StopTemporaryEffects();
     }
 
     public bool TryGetFollowTarget(out float targetX)
@@ -129,7 +219,7 @@ public class CharacterPairController : MonoBehaviour
             ClampPositionX(targetX),
             ref followVelocityX,
             Mathf.Max(0.01f, followSmoothTime),
-            moveSpeed,
+            EffectiveMoveSpeed,
             Time.deltaTime
         );
 

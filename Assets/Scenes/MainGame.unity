@@ -524,6 +524,8 @@ MonoBehaviour:
   gameManager: {fileID: 1085787184}
   itemSpawner: {fileID: 548926923}
   eaterController: {fileID: 1162301305}
+  characterMovement: {fileID: 1847625362}
+  itemEffects: {fileID: 548926925}
   gameDuration: 50
   startDisplayDuration: 3
   finishDisplayDuration: 3
@@ -1087,6 +1089,7 @@ GameObject:
   m_Component:
   - component: {fileID: 548926924}
   - component: {fileID: 548926923}
+  - component: {fileID: 548926925}
   m_Layer: 0
   m_Name: FallingItemSpawner
   m_TagString: Untagged
@@ -1106,25 +1109,60 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9fb51f908b8253489f02554d2632a7b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FallingItemSpawner
-  fruitPrefab: {fileID: 7009484295860949013, guid: a5cd8a8ffae943b429154c2ebe9d8b5c, type: 3}
+  fruitPrefabs:
+  - {fileID: 7009484295860949013, guid: a5cd8a8ffae943b429154c2ebe9d8b5c, type: 3}
+  - {fileID: 4369131496927944823, guid: 04b4af210150a422aa7331b8437d2685, type: 3}
+  - {fileID: 5003791662382702115, guid: 8d531ecdca3b94f4f87a60a5df047ba2, type: 3}
   bugPrefab: {fileID: 5957405460356731996, guid: 3e2ac7d090e5f434cbf5334eb2d39b80, type: 3}
+  bananaPrefab: {fileID: 6293793817033168373, guid: 68eec6787580b434595132721557aea2, type: 3}
+  chiliPrefab: {fileID: 2291969579661214145, guid: fd49021fef9344230b7c6497b42e292a, type: 3}
   feverItemPrefab: {fileID: 7009484295860949013, guid: 5b5d02e48b3c925428e81f2441da7b0c, type: 3}
-  fruitParent: {fileID: 1838240194}
-  bugParent: {fileID: 1447929604}
-  feverItemParent: {fileID: 1838240194}
-  bugProbability: 0.547
+  itemParent: {fileID: 0}
+  itemEffects: {fileID: 548926925}
+  phases:
+  - label: "\u5C0E\u5165"
+    endTime: 10
+    fruitsPerSecond: 0.8
+    placement: 0
+    bananaSlots: 0
+    chiliSlots: 0
+    bugSlots: 0
+  - label: "\u30CF\u30D7\u30CB\u30F3\u30B0"
+    endTime: 24
+    fruitsPerSecond: 1.1
+    placement: 1
+    bananaSlots: 1
+    chiliSlots: 1
+    bugSlots: 3
+  - label: "\u5354\u529B"
+    endTime: 37
+    fruitsPerSecond: 1.4
+    placement: 2
+    bananaSlots: 1
+    chiliSlots: 1
+    bugSlots: 3
+  - label: "\u30D5\u30A3\u30FC\u30D0\u30FC\u5C0E\u5165"
+    endTime: 41
+    fruitsPerSecond: 1
+    placement: 3
+    bananaSlots: 0
+    chiliSlots: 0
+    bugSlots: 0
+  - label: "\u30D5\u30A3\u30CA\u30FC\u30EC"
+    endTime: 50
+    fruitsPerSecond: 1
+    placement: 3
+    bananaSlots: 0
+    chiliSlots: 0
+    bugSlots: 0
+  maxActiveItems: 18
+  effectItemSpacing: {x: 4, y: 5}
+  specialItemSpacing: 1
+  firstFeverWindow: {x: 37, y: 38}
+  feverFruitsPerSecond: 2.8
+  intervalJitter: {x: 0.8, y: 1.2}
   minFallSpeed: 5
   maxFallSpeed: 10
-  calmDuration: {x: 5, y: 8}
-  calmInterval: {x: 0.76, y: 1.04}
-  rushDuration: {x: 3, y: 5}
-  rushInterval: {x: 0.25, y: 0.45}
-  feverItemProbability: 0.051
-  feverItemCooldown: 15
-  feverDuration: 8
-  feverSpawnInterval: 0.2
-  feverFruitsPerSpawn: 2
-  isFall: 0
 --- !u!4 &548926924
 Transform:
   m_ObjectHideFlags: 0
@@ -1140,6 +1178,30 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &548926925
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 548926922}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 42695b5e2a65745dd9eaa233e759c32f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ItemEffectController
+  movement: {fileID: 1847625362}
+  carrier: {fileID: 1038277768}
+  eater: {fileID: 1162301305}
+  spawner: {fileID: 548926923}
+  peelPrefab: {fileID: 7412912060657440894, guid: 7c670c27bf1534758afd75187ed7e24b, type: 3}
+  gameplayCamera: {fileID: 519420031}
+  landingWidthRatio: 0.3
+  throwDuration: 0.7
+  throwHeight: 1.2
+  burstFruitCount: 5
+  shakeDuration: 0.35
+  shakeAmplitude: 0.12
 --- !u!1 &581647224
 GameObject:
   m_ObjectHideFlags: 0
@@ -5174,6 +5236,11 @@ MonoBehaviour:
   moveSpeed: 5
   followSmoothTime: 0.2
   horizontalMargin: 0.7
+  chiliDuration: 5
+  chiliSpeedMultiplier: 1.6
+  chiliSwayAmplitude: 0.45
+  chiliSwayFrequency: 2
+  slideSpeed: 12
 --- !u!1 &1873143398
 GameObject:
   m_ObjectHideFlags: 0

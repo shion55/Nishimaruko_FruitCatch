@@ -18,7 +18,6 @@ public enum ItemKind
 public enum ItemEffectType
 {
     None,
-    // 皮の着地先は画面幅の35%／65%付近を想定（投擲は未実装）。
     BananaPeel,
     Chili,
     Fever
