@@ -110,12 +110,29 @@ public class EaterCatchController : MonoBehaviour
             return;
 
         // 同じ果物が両方に触れても、取得を先に確定する。
-        mouthCollider.Overlap(ContactFilter2D.noFilter, contacts);
+        CatchAt(mouthCollider);
+
+        // フィーバー果物を口で取得したフレームから、外側の範囲も取得に切り替える。
+        if (fallingItemSpawner != null && fallingItemSpawner.IsFever)
+        {
+            CatchAt(leftBounceSensor);
+            CatchAt(rightBounceSensor);
+        }
+        else
+        {
+            BounceAt(leftBounceSensor);
+            BounceAt(rightBounceSensor);
+        }
+    }
+
+    private void CatchAt(Collider2D sensor)
+    {
+        if (sensor == null || !sensor.isActiveAndEnabled)
+            return;
+
+        sensor.Overlap(ContactFilter2D.noFilter, contacts);
         foreach (Collider2D other in contacts)
             TryCatch(other.GetComponentInParent<CatchableItem>());
-
-        BounceAt(leftBounceSensor);
-        BounceAt(rightBounceSensor);
     }
 
     private void TryCatch(CatchableItem item)

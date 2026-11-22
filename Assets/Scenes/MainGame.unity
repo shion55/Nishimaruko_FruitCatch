@@ -5307,6 +5307,8 @@ MonoBehaviour:
   moveSpeed: 5
   followSmoothTime: 0.2
   horizontalMargin: 0.7
+  fallingItemSpawner: {fileID: 548926923}
+  feverSpeedMultiplier: 1.5
   chiliDuration: 5
   chiliSpeedMultiplier: 1.6
   chiliSwayAmplitude: 0.45

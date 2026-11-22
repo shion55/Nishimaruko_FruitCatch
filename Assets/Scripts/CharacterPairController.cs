@@ -9,6 +9,10 @@ public class CharacterPairController : MonoBehaviour
     [SerializeField, Min(0.01f)] private float followSmoothTime = 0.2f; // 追従の滑らかさ（秒）。大きいほど緩やか。
     [SerializeField, Min(0f)] private float horizontalMargin = 0.7f;
 
+    [Header("Fever")]
+    [SerializeField] private FallingItemSpawner fallingItemSpawner;
+    [SerializeField, Min(1f)] private float feverSpeedMultiplier = 1.5f; // 速度上限と追従の応答を速める倍率。
+
     [Header("Chili")]
     [SerializeField, Min(0.1f)] private float chiliDuration = 5f; // 効果時間（秒）。
     [SerializeField, Min(1f)] private float chiliSpeedMultiplier = 1.6f;
@@ -26,7 +30,10 @@ public class CharacterPairController : MonoBehaviour
     public float ChiliRemainingTime => chiliTimer.Remaining;
     public bool IsSliding => slideDirection != 0;
     public event System.Action ReachedBananaWall;
-    private float EffectiveMoveSpeed => moveSpeed * (IsChiliActive ? chiliSpeedMultiplier : 1f);
+    private float FeverMultiplier => fallingItemSpawner != null && fallingItemSpawner.IsFever
+        ? Mathf.Max(1f, feverSpeedMultiplier) : 1f;
+    private float EffectiveMoveSpeed => moveSpeed * FeverMultiplier * (IsChiliActive ? chiliSpeedMultiplier : 1f);
+    private float EffectiveFollowSmoothTime => Mathf.Max(0.01f, followSmoothTime / FeverMultiplier);
 
     private enum InputSource
     {
@@ -218,7 +225,7 @@ public class CharacterPairController : MonoBehaviour
             transform.position.x,
             ClampPositionX(targetX),
             ref followVelocityX,
-            Mathf.Max(0.01f, followSmoothTime),
+            EffectiveFollowSmoothTime,
             EffectiveMoveSpeed,
             Time.deltaTime
         );
