@@ -33,6 +33,8 @@
 
 アイテムの種類・取得ルール・効果は、[アイテム仕様](Docs/Items.md)を参照してください。
 
+50秒間の体験フローと出現制御の設計案は、[出現設計](Docs/SpawnDesign.md)を参照してください。
+
 ## Windowsでの実行
 
 配布用ファイルは`Tools/Distribution`にあります。
