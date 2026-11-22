@@ -1825,7 +1825,7 @@ Transform:
   m_GameObject: {fileID: 650661404}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.375, y: -0.2, z: 0}
+  m_LocalPosition: {x: -0.49, y: -0.2, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1875,7 +1875,7 @@ BoxCollider2D:
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 0.15, y: 0.2}
+  m_Size: {x: 0.38, y: 0.2}
   m_EdgeRadius: 0
 --- !u!1 &650759090
 GameObject:
@@ -2488,6 +2488,73 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 787901742}
   m_CullTransparentMesh: 1
+--- !u!1001 &804274106
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 1162301302}
+    m_Modifications:
+    - target: {fileID: 3848500945742710689, guid: 606e570aba33b42e4aba7730e51bbcb0, type: 3}
+      propertyPath: m_Name
+      value: Effect_eat
+      objectReference: {fileID: 0}
+    - target: {fileID: 5759166848015748855, guid: 606e570aba33b42e4aba7730e51bbcb0, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5759166848015748855, guid: 606e570aba33b42e4aba7730e51bbcb0, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5759166848015748855, guid: 606e570aba33b42e4aba7730e51bbcb0, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5759166848015748855, guid: 606e570aba33b42e4aba7730e51bbcb0, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5759166848015748855, guid: 606e570aba33b42e4aba7730e51bbcb0, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5759166848015748855, guid: 606e570aba33b42e4aba7730e51bbcb0, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5759166848015748855, guid: 606e570aba33b42e4aba7730e51bbcb0, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5759166848015748855, guid: 606e570aba33b42e4aba7730e51bbcb0, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5759166848015748855, guid: 606e570aba33b42e4aba7730e51bbcb0, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5759166848015748855, guid: 606e570aba33b42e4aba7730e51bbcb0, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 606e570aba33b42e4aba7730e51bbcb0, type: 3}
+--- !u!4 &804274107 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 5759166848015748855, guid: 606e570aba33b42e4aba7730e51bbcb0, type: 3}
+  m_PrefabInstance: {fileID: 804274106}
+  m_PrefabAsset: {fileID: 0}
+--- !u!198 &804274108 stripped
+ParticleSystem:
+  m_CorrespondingSourceObject: {fileID: 6039191679481660354, guid: 606e570aba33b42e4aba7730e51bbcb0, type: 3}
+  m_PrefabInstance: {fileID: 804274106}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &836333043
 GameObject:
   m_ObjectHideFlags: 0
@@ -3083,6 +3150,7 @@ Transform:
   - {fileID: 650661405}
   - {fileID: 1446554945}
   - {fileID: 1794013738}
+  - {fileID: 804274107}
   m_Father: {fileID: 1847625360}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!50 &1162301303
@@ -3136,6 +3204,7 @@ MonoBehaviour:
   damping: 15
   EatingImage: {fileID: 21300000, guid: 5cb3e85f5639c8a47b21fcfa86bf5664, type: 3}
   ClosingImage: {fileID: 21300000, guid: dcda3c73cc0c50f4bac93747fbb224ee, type: 3}
+  eatingCloseDuration: 0.12
   leftBounceSensor: {fileID: 650661406}
   rightBounceSensor: {fileID: 1446554944}
   bounceSpeed: 5
@@ -3213,6 +3282,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CatchEffectPlayer
   fruitEffectPrefab: {fileID: 7257567317453261998, guid: 20081a32e94c9264697edb987cb9f9da, type: 3}
   bugEffectPrefab: {fileID: 496393266921703136, guid: 5eb30e2df984c7c4897c227135e33cd1, type: 3}
+  eatingParticles: {fileID: 804274108}
+  eatingParticleCount: 10
   bounceParticles: {fileID: 1794013739}
   bounceParticleCount: 8
   headPoint: {fileID: 1260147710}
@@ -4096,7 +4167,7 @@ BoxCollider2D:
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 0.15, y: 0.2}
+  m_Size: {x: 0.38, y: 0.2}
   m_EdgeRadius: 0
 --- !u!4 &1446554945
 Transform:
@@ -4107,7 +4178,7 @@ Transform:
   m_GameObject: {fileID: 1446554943}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.375, y: -0.2, z: 0}
+  m_LocalPosition: {x: 0.49, y: -0.2, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

@@ -19,6 +19,7 @@ public class EaterCatchController : MonoBehaviour
 
     [SerializeField] private Sprite EatingImage;
     [SerializeField] private Sprite ClosingImage;
+    [SerializeField, Min(0f)] private float eatingCloseDuration = 0.12f; // 食べた瞬間だけ閉口表示にする秒数。取得判定は止めない。
 
     [Header("Bounce Sensors")]
     // 子オブジェクトの位置とBoxCollider2D.sizeで、口の外側の救済範囲を調整する。
@@ -34,6 +35,7 @@ public class EaterCatchController : MonoBehaviour
 
     private float scaleVelocity = 0f;
     private readonly List<Collider2D> contacts = new List<Collider2D>();
+    private readonly TemporaryEffectTimer eatingTimer = new TemporaryEffectTimer();
 
     public event System.Action<ItemConsumption> ItemConsumed;
 
@@ -50,6 +52,7 @@ public class EaterCatchController : MonoBehaviour
 
     private void Update()
     {
+        eatingTimer.Tick(Time.deltaTime);
         float gain = ReadInputGain();
 
         // 音量の急激な変化を滑らかにする
@@ -60,7 +63,7 @@ public class EaterCatchController : MonoBehaviour
             gain,
             1f - Mathf.Exp(-Time.deltaTime / smoothTime)
         );
-        myspriterenderer.sprite = gain <= mouthOpenThreshold ? ClosingImage : EatingImage;
+        myspriterenderer.sprite = eatingTimer.IsActive || gain <= mouthOpenThreshold ? ClosingImage : EatingImage;
         BounceByGain(smoothedGain, ref scaleVelocity);
     }
 
@@ -126,8 +129,14 @@ public class EaterCatchController : MonoBehaviour
 
         if (consumption.Category == ItemCategory.Fruit)
         {
+            eatingTimer.Refresh(eatingCloseDuration);
+            if (eatingTimer.IsActive)
+                myspriterenderer.sprite = ClosingImage;
             if (catchEffectPlayer != null)
-                catchEffectPlayer.PlayFruitEffect();
+            {
+                Vector2 contact = mouthCollider.ClosestPoint(consumption.WorldPosition);
+                catchEffectPlayer.PlayFruitEffect(new Vector3(contact.x, contact.y, transform.position.z));
+            }
         }
         else if (consumption.Category == ItemCategory.Bug)
         {
@@ -177,6 +186,13 @@ public class EaterCatchController : MonoBehaviour
                     "FallingItemSpawner が設定されていません"
                 );
         }
+    }
+
+    private void OnDisable()
+    {
+        eatingTimer.Clear();
+        if (myspriterenderer != null)
+            myspriterenderer.sprite = ClosingImage;
     }
 
 }
