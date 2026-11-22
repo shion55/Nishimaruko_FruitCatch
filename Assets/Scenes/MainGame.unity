@@ -2879,6 +2879,8 @@ MonoBehaviour:
   walkFPS: 6
   moveThreshold: 0.05
   spritesFaceRight: 0
+  fallingItemSpawner: {fileID: 548926923}
+  feverWalkSpeedMultiplier: 1.5
 --- !u!1 &1043840904
 GameObject:
   m_ObjectHideFlags: 0
@@ -3260,6 +3262,7 @@ MonoBehaviour:
   maxGain: 0.25
   stiffness: 889.3
   damping: 15
+  feverScaleMultiplier: 1.2
   EatingImage: {fileID: 21300000, guid: 5cb3e85f5639c8a47b21fcfa86bf5664, type: 3}
   ClosingImage: {fileID: 21300000, guid: dcda3c73cc0c50f4bac93747fbb224ee, type: 3}
   eatingCloseDuration: 0.12

@@ -17,6 +17,9 @@ public class EaterCatchController : MonoBehaviour
     [SerializeField] private float stiffness = 100f;
     [SerializeField] private float damping = 15f;
 
+    [Header("Fever")]
+    [SerializeField, Min(1f)] private float feverScaleMultiplier = 1.2f; // 声量による横幅に重ねる、縦横の拡大倍率。
+
     [SerializeField] private Sprite EatingImage;
     [SerializeField] private Sprite ClosingImage;
     [SerializeField, Min(0f)] private float eatingCloseDuration = 0.12f; // 食べた瞬間だけ閉口表示にする秒数。取得判定は止めない。
@@ -99,10 +102,12 @@ public class EaterCatchController : MonoBehaviour
         velocity += acceleration * dt;
         scaleMultiplier = Mathf.Clamp(scaleMultiplier + velocity * dt, 1f, Mathf.Max(1f, maxScale));
 
-        // 元の大きさを基準に拡大縮小
+        // 声量による横幅は維持し、フィーバー中は縦横とも大きくする。
+        float feverScale = fallingItemSpawner != null && fallingItemSpawner.IsFever
+            ? Mathf.Max(1f, feverScaleMultiplier) : 1f;
         transform.localScale = new Vector3(
-            originalScale.x * scaleMultiplier,
-            originalScale.y,
+            originalScale.x * scaleMultiplier * feverScale,
+            originalScale.y * feverScale,
             originalScale.z
         );
     }
@@ -212,7 +217,12 @@ public class EaterCatchController : MonoBehaviour
     {
         eatingTimer.Clear();
         if (myspriterenderer != null)
+        {
             myspriterenderer.sprite = ClosingImage;
+            transform.localScale = originalScale;
+        }
+        scaleMultiplier = 1f;
+        scaleVelocity = 0f;
     }
 
 }

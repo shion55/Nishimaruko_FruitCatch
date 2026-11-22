@@ -13,6 +13,10 @@ public class CarrierAnimator : MonoBehaviour
     [SerializeField] private float moveThreshold = 0.05f;
     [SerializeField] private bool spritesFaceRight = true;
 
+    [Header("Fever")]
+    [SerializeField] private FallingItemSpawner fallingItemSpawner;
+    [SerializeField, Min(1f)] private float feverWalkSpeedMultiplier = 1.5f; // 移動中の足踏み速度の倍率。
+
     private Vector3 previousPosition;
     private float animationTimer;
     private int frameIndex;
@@ -56,11 +60,14 @@ public class CarrierAnimator : MonoBehaviour
             walkSprites[1] == null)
             return;
 
-        animationTimer += Time.deltaTime;
+        float feverMultiplier = fallingItemSpawner != null && fallingItemSpawner.IsFever
+            ? Mathf.Max(1f, feverWalkSpeedMultiplier) : 1f;
+        animationTimer += Time.deltaTime * feverMultiplier;
+        float frameDuration = 1f / Mathf.Max(walkFPS, 0.1f);
 
-        if (animationTimer >= 1f / Mathf.Max(walkFPS, 0.1f))
+        while (animationTimer >= frameDuration)
         {
-            animationTimer = 0f;
+            animationTimer -= frameDuration;
             frameIndex = (frameIndex + 1) % 2;
         }
 
