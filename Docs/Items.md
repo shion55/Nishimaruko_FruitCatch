@@ -50,3 +50,15 @@ Eaterの口判定は横向きカプセル。声量で横幅だけを変え、声
 出現時刻・頻度・共通上限はFallingItemSpawner、唐辛子・滑走の強さはCharacterPairController、皮の投擲・追加落下・画面揺れはItemEffectControllerのInspectorで調整する。50秒間の流れと、フィーバー果物の再出現は[SpawnDesign.md](SpawnDesign.md)を参照。
 
 種類・得点は`Assets/Data/Items`、最大開口倍率・弾き上げ初速はEaterのInspectorで調整する。救済用判定の位置と大きさはEaterの子にある`LeftBounceSensor`／`RightBounceSensor`で調整する。操作は[Controls.md](Controls.md)を参照。
+
+### フィーバー演出
+
+- 開始時にEaterの周囲へ金色の星を放出する。開始テキストは表示しない。
+- フィーバー中はEaterの周囲に小さな星が浮かび、移動中のCarrierの足元には土煙と短い残像が出る。停止中は新しい土煙・残像を出さない。
+- 背景は暖色を薄く重ね、約1.4秒周期でゆっくり濃淡を変える。声の高さによる波紋は継続する。
+- 果物の取得時は既存のエフェクトに金色の星を追加する。加点表示は明るい金色で1.2倍にし、出現時に少し弾ませる。虫の減点表示は変えない。
+- 本編終了・Spawnerの停止・演出コンポーネントの無効化で、星・土煙・残像を止め、背景を元へ戻す。
+
+MainGameの`FeverPresentation`にある`FeverPresentationController`で星の数・発生間隔・残像の濃さ・背景色を調整する。得点表示の色と倍率はEaterの`ScorePopup`で調整する。
+
+新たに追加する粒子3系統と残像4枚は起動時に用意して再利用する。各粒子はワールド座標を保持し、移動後のキャラクターへ引っ張られない。表示数には上限を設け、連続取得でもこれらの演出用オブジェクトを増やさない。

@@ -170,7 +170,9 @@ public class EaterCatchController : MonoBehaviour
         }
 
         if (scorePopup != null)
-            scorePopup.ShowScore(consumption.ScoreDelta);
+            scorePopup.ShowScore(consumption.ScoreDelta,
+                consumption.Effect == ItemEffectType.Fever ||
+                (fallingItemSpawner != null && fallingItemSpawner.IsFever));
 
         gameManager.RegisterCatch(consumption.Category, consumption.ScoreDelta);
         ApplyItemEffect(consumption.Effect);

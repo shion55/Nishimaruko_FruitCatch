@@ -17,6 +17,10 @@ public class ScorePopup : MonoBehaviour
     private Color negativeColor =
         new Color(1f, 0.3f, 0.4f);
 
+    [Header("Fever")]
+    [SerializeField] private Color feverPositiveColor = new Color(1f, 0.94f, 0.35f);
+    [SerializeField, Min(1f)] private float feverScaleMultiplier = 1.2f;
+
     [Header("Movement")]
     [SerializeField] private float startY = -0.2f;
     [SerializeField] private float riseDistance = 0.8f;
@@ -33,7 +37,7 @@ public class ScorePopup : MonoBehaviour
 
     private int popupCount;
 
-    public void ShowScore(int scoreDelta)
+    public void ShowScore(int scoreDelta, bool fever = false)
     {
         if (popupPrefab == null || scoreDelta == 0)
             return;
@@ -46,8 +50,9 @@ public class ScorePopup : MonoBehaviour
             ? $"+{scoreDelta}"
             : scoreDelta.ToString();
 
+        bool feverPositive = fever && scoreDelta > 0;
         Color color = scoreDelta > 0
-            ? positiveColor
+            ? (feverPositive ? feverPositiveColor : positiveColor)
             : negativeColor;
 
         // 連続取得時に少し左右へずらす
@@ -62,7 +67,7 @@ public class ScorePopup : MonoBehaviour
             Vector3.up * riseDistance;
 
         StartCoroutine(Animate(
-            popup, start, end, color
+            popup, start, end, color, feverPositive
         ));
     }
 
@@ -70,7 +75,8 @@ public class ScorePopup : MonoBehaviour
         TextMeshPro popup,
         Vector3 start,
         Vector3 end,
-        Color baseColor)
+        Color baseColor,
+        bool feverPositive)
     {
         float elapsed = 0f;
         float lifetime = Mathf.Max(0.01f, duration);
@@ -118,6 +124,9 @@ public class ScorePopup : MonoBehaviour
                 0.8f, 1f,
                 Mathf.SmoothStep(0f, 1f, t * 5f)
             );
+            if (feverPositive)
+                scale *= Mathf.Max(1f, feverScaleMultiplier) *
+                    (1f + 0.18f * Mathf.Sin(Mathf.Clamp01(t * 4f) * Mathf.PI));
 
             popup.transform.localScale =
                 originalScale * scale;

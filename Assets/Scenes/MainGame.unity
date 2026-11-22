@@ -611,6 +611,69 @@ MonoBehaviour:
     message: "\u3068\u3066\u3082\u3059\u3054\u3044\uFF01"
   - minimumScore: 200
     message: "\u304F\u3060\u3082\u306E\u30DE\u30B9\u30BF\u30FC\uFF01"
+--- !u!1 &238349229
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 238349231}
+  - component: {fileID: 238349230}
+  m_Layer: 0
+  m_Name: FeverPresentation
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &238349230
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 238349229}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8aad1b3ff62304f11bbc1a77757ed064, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::FeverPresentationController
+  spawner: {fileID: 548926923}
+  eater: {fileID: 1162301305}
+  eaterRenderer: {fileID: 1162301306}
+  carrierRenderer: {fileID: 1038277770}
+  background: {fileID: 175575672}
+  sparkleMaterial: {fileID: 2100000, guid: b74792186beb049e7b8429ea3e69e46e, type: 2}
+  dustMaterial: {fileID: 2100000, guid: f3b34aa00d634497d825ada1a241f060, type: 2}
+  goldColor: {r: 1, g: 0.76, b: 0.18, a: 1}
+  lightGoldColor: {r: 1, g: 0.94, b: 0.55, a: 1}
+  sparkleInterval: 0.06
+  startSparkleCount: 28
+  catchSparkleCount: 10
+  moveThreshold: 0.05
+  trailInterval: 0.08
+  afterimageAlpha: 0.18
+  afterimageLifetime: 0.24
+  backgroundTint: {r: 1, g: 0.68, b: 0.2, a: 1}
+  backgroundStrength: 0.18
+  pulsePeriod: 1.4
+--- !u!4 &238349231
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 238349229}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &243349830
 GameObject:
   m_ObjectHideFlags: 0
@@ -3371,6 +3434,8 @@ MonoBehaviour:
   popupPrefab: {fileID: 1391745136688848088, guid: cb69deef2b511b0448186b7d24f61b0a, type: 3}
   positiveColor: {r: 1, g: 0.19999999, b: 0.37554407, a: 1}
   negativeColor: {r: 0.2980392, g: 0.49109948, b: 1, a: 1}
+  feverPositiveColor: {r: 1, g: 0.94, b: 0.35, a: 1}
+  feverScaleMultiplier: 1.2
   startY: 0.26
   riseDistance: 0.92
   horizontalSpread: 1.03
@@ -5716,3 +5781,4 @@ SceneRoots:
   - {fileID: 548926924}
   - {fileID: 1085787185}
   - {fileID: 1834224849}
+  - {fileID: 238349231}

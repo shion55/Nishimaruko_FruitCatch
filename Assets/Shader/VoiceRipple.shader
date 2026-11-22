@@ -4,6 +4,7 @@ Shader "Custom/VoiceRipple"
     {
         [PerRendererData] _MainTex ("Sprite Texture", 2D) = "white" {}
         _Color ("Tint", Color) = (1, 1, 1, 1)
+        [HideInInspector] _FeverTint ("Fever Tint", Color) = (1, 0.68, 0.2, 0)
         [HideInInspector] _RippleSettings ("Speed, Width, Distortion", Vector) = (6, 0.18, 0.035, 0)
         [HideInInspector] _RippleLifetime ("Lifetime", Float) = 0.75
         [HideInInspector] _RippleColor ("Ring Color", Color) = (0.7, 0.95, 1, 0.12)
@@ -48,6 +49,7 @@ Shader "Custom/VoiceRipple"
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _Color;
+                float4 _FeverTint;
                 float4 _RippleSettings;
                 float _RippleLifetime;
                 float4 _RippleColor;
@@ -105,6 +107,7 @@ Shader "Custom/VoiceRipple"
                 half4 color = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv) * input.color * _Color;
                 color.rgb = lerp(color.rgb, _RippleColor.rgb,
                     saturate(highlight * _RippleColor.a * edgeFade));
+                color.rgb = lerp(color.rgb, _FeverTint.rgb, saturate(_FeverTint.a));
                 return color;
             }
             ENDHLSL
