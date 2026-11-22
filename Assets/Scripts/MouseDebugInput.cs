@@ -94,6 +94,18 @@ public static class MouseDebugInput
         return true;
     }
 
+    // 右ボタンを押している間、画面下端を低音(0)、上端を高音(1)として返す。
+    public static bool TryGetNormalizedPitch(out float normalizedPitch)
+    {
+        normalizedPitch = 0f;
+        if (!TryGetMouse(out Mouse mouse) || !mouse.rightButton.isPressed)
+            return false;
+
+        normalizedPitch = Mathf.InverseLerp(0f, Mathf.Max(1f, Screen.height - 1f),
+            mouse.position.ReadValue().y);
+        return true;
+    }
+
     private static bool TryGetMouse(out Mouse mouse)
     {
         mouse = Mouse.current;

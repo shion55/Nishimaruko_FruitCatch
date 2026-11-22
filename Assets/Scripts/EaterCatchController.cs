@@ -39,6 +39,9 @@ public class EaterCatchController : MonoBehaviour
 
     public event System.Action<ItemConsumption> ItemConsumed;
 
+    // マイク／マウス代替入力を含む、口の拡縮と共通の平滑化済み音量。
+    public float NormalizedVoiceVolume => Mathf.Clamp01(smoothedGain / Mathf.Max(0.001f, maxGain));
+
     private void Awake()
     {
         if (microphone == null)
