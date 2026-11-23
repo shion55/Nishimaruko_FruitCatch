@@ -8,6 +8,15 @@ public class CatchEffectPlayer : MonoBehaviour
     [SerializeField] private GameObject fruitEffectPrefab;
     [SerializeField] private GameObject bugEffectPrefab;
 
+    [Header("Eating Particles")]
+    [SerializeField] private ParticleSystem eatingParticles;
+    [SerializeField, Min(1)] private int eatingParticleCount = 10;
+
+    [Header("Bounce Particles")]
+    // 色・大きさ・上向きの広がり・寿命は子のParticleSystemで調整する。
+    [SerializeField] private ParticleSystem bounceParticles;
+    [SerializeField, Min(1)] private int bounceParticleCount = 8; // 弾き上げ1回あたりの粒数。
+
     [Header("Position")]
     [SerializeField] private Transform headPoint;
     [SerializeField] private Transform effectParent;
@@ -28,14 +37,39 @@ public class CatchEffectPlayer : MonoBehaviour
     private GameObject activeGroup;
     private Coroutine activeCoroutine;
 
-    public void PlayFruitEffect()
+    public void PlayFruitEffect(Vector3 worldPosition)
     {
+        if (!isActiveAndEnabled)
+            return;
+
+        EmitParticles(eatingParticles, worldPosition, Quaternion.identity, eatingParticleCount);
         SpawnEffects(fruitEffectPrefab);
     }
 
     public void PlayBugEffect()
     {
         SpawnEffects(bugEffectPrefab);
+    }
+
+    public void PlayBounceEffect(Vector3 worldPosition, bool isLeft)
+    {
+        if (!isActiveAndEnabled)
+            return;
+
+        EmitParticles(bounceParticles, worldPosition,
+            Quaternion.Euler(0f, isLeft ? 180f : 0f, 0f), bounceParticleCount);
+    }
+
+    private static void EmitParticles(ParticleSystem particles, Vector3 worldPosition, Quaternion rotation, int count)
+    {
+        if (particles == null)
+            return;
+
+        // World空間で再利用し、移動や連続取得でも放出済みの粒を動かしたり消したりしない。
+        particles.transform.SetPositionAndRotation(worldPosition, rotation);
+        if (!particles.isPlaying)
+            particles.Play();
+        particles.Emit(Mathf.Max(1, count));
     }
 
     private void SpawnEffects(GameObject prefab)
@@ -187,5 +221,9 @@ public class CatchEffectPlayer : MonoBehaviour
     private void OnDisable()
     {
         ClearEffects();
+        if (eatingParticles != null)
+            eatingParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        if (bounceParticles != null)
+            bounceParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
     }
 }

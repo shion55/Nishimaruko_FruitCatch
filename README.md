@@ -4,9 +4,10 @@
 
 ## 開発環境
 
-- Unity `6000.4.2f1`
-- Universal Render Pipeline 17.4.0
-- Input System 1.19.0
+- Unity `6000.6.4f1`
+- Universal Render Pipeline 17.6.0
+- Input System 1.20.0
+- Unity Pipeline 1.0.1（Unity CLIからEditorを操作・調査）
 - Git
 
 共同開発では、必ず同じUnityバージョンを使用してください。異なるバージョンでSceneやPrefabを保存すると、大量の差分や互換性問題が発生することがあります。
@@ -15,7 +16,7 @@
 
 1. このリポジトリをcloneします。
 2. Unity Hubでリポジトリのルートフォルダーを追加します。
-3. Unity `6000.4.2f1`で開きます。
+3. Unity `6000.6.4f1`で開きます。
 4. 最初のimportが完了するまで待ちます。
 5. `Assets/Scenes/Preparation.unity`から再生します。
 
@@ -26,14 +27,13 @@
 
 `Assets/Scenes/Menu.unity`は現在、Build Settingsには登録されていません。
 
-## 開発時の操作
+## 操作方法
 
-カメラ判定を利用できない場合、Preparation画面では次のキーで動作確認できます。
+通常操作、キーボード・マウスによるデバッグ操作、実機入力なしでの確認手順は、[操作ガイド](Docs/Controls.md)を参照してください。
 
-- `Space`: 次へ進む
-- `Backspace`: 前へ戻る
-- `R`: 最初からやり直す
-- `C`: カメラ利用可能状態を切り替える
+アイテムの種類・取得ルール・効果は、[アイテム仕様](Docs/Items.md)を参照してください。
+
+50秒間の体験フローと出現制御は、[出現設計](Docs/SpawnDesign.md)を参照してください。
 
 ## Windowsでの実行
 

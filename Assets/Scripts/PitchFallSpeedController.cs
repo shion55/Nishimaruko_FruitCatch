@@ -27,11 +27,17 @@ public class PitchFallSpeedController : MonoBehaviour
     private float targetMultiplier = 1f;
     private float lastPitchTime = -Mathf.Infinity;
 
+    // 演出も、落下速度に適用した平滑化済みの値を参照する。
+    public float CurrentSpeedMultiplier => currentMultiplier;
+    public float SlowdownStrength => Mathf.InverseLerp(1f, minSpeedMultiplier, currentMultiplier);
+    public bool HasPitchInput { get; private set; }
+
     void OnEnable()
     {
         currentMultiplier = 1f;
         targetMultiplier = 1f;
         lastPitchTime = -Mathf.Infinity;
+        HasPitchInput = false;
 
         ApplySpeed();
     }
@@ -42,8 +48,15 @@ public class PitchFallSpeedController : MonoBehaviour
             ? microphone.PitchHz
             : 0f;
 
-        if (pitch > 0f)
+        if (MouseDebugInput.Enabled)
         {
+            HasPitchInput = MouseDebugInput.TryGetNormalizedPitch(out float normalizedPitch);
+            targetMultiplier = HasPitchInput ? GetSpeedMultiplier(normalizedPitch) : 1f;
+            lastPitchTime = -Mathf.Infinity;
+        }
+        else if (pitch > 0f)
+        {
+            HasPitchInput = true;
             lastPitchTime = Time.time;
 
             float normalizedPitch = Mathf.InverseLerp(
@@ -52,28 +65,16 @@ public class PitchFallSpeedController : MonoBehaviour
                 pitch
             );
 
-            // ONなら高音ほど速い、OFFなら高音ほど遅い
-            if (highPitchFaster)
-            {
-                targetMultiplier = Mathf.Lerp(
-                    minSpeedMultiplier,
-                    1f,
-                    normalizedPitch
-                );
-            }
-            else
-            {
-                targetMultiplier = Mathf.Lerp(
-                    1f,
-                    minSpeedMultiplier,
-                    normalizedPitch
-                );
-            }
+            targetMultiplier = GetSpeedMultiplier(normalizedPitch);
         }
-        else if (Time.time - lastPitchTime > pitchHoldTime)
+        else
         {
-            // 声がなくなったら通常速度へ
-            targetMultiplier = 1f;
+            HasPitchInput = Time.time - lastPitchTime <= pitchHoldTime;
+            if (!HasPitchInput)
+            {
+                // 声がなくなったら通常速度へ
+                targetMultiplier = 1f;
+            }
         }
 
         // 滑らかに速度を変化
@@ -91,6 +92,14 @@ public class PitchFallSpeedController : MonoBehaviour
         ApplySpeed();
     }
 
+    private float GetSpeedMultiplier(float normalizedPitch)
+    {
+        // マイクとマウスで、高低の向き・速度範囲を共通にする。
+        return highPitchFaster
+            ? Mathf.Lerp(minSpeedMultiplier, 1f, normalizedPitch)
+            : Mathf.Lerp(1f, minSpeedMultiplier, normalizedPitch);
+    }
+
     private void ApplySpeed()
     {
         float maxSpeed = Mathf.Max(0f, maxFallSpeed);
@@ -105,6 +114,9 @@ public class PitchFallSpeedController : MonoBehaviour
 
     void OnDisable()
     {
+        HasPitchInput = false;
+        currentMultiplier = 1f;
+        targetMultiplier = 1f;
         FallingObject.FruitMultiplier = 1f;
         FallingObject.BugMultiplier = 1f;
 

@@ -1,6 +1,7 @@
 ﻿
 using UnityEngine;
 
+[RequireComponent(typeof(Rigidbody2D))]
 public class FallingObject : MonoBehaviour
 {
     public enum ItemType
@@ -14,7 +15,11 @@ public class FallingObject : MonoBehaviour
     [SerializeField] private ItemType itemType = ItemType.Fruit;
 
     [Header("Fall")]
-    [SerializeField] private float fallSpeed = 3f;
+    [SerializeField] private float fallSpeed = 3f; // 下降速度（units/秒）。生成時はSpawnerが設定する。
+
+    [Header("Bounce")]
+    [SerializeField, Min(0.1f)] private float bounceGravity = 10f; // 上昇中の減速（units/秒²）。初速と合わせて高さを調整。
+    [SerializeField] private Camera gameplayCamera;
 
     // 共通の速度制御
     public static float FruitMultiplier = 1f;
@@ -24,18 +29,78 @@ public class FallingObject : MonoBehaviour
     public static float FruitMaxSpeed = 4f;
     public static float BugMaxSpeed = 4f;
 
-    private Camera mainCamera;
+    private Rigidbody2D body;
+    private CatchableItem catchableItem;
+    public float VerticalSpeed { get; private set; }
+    public bool IsRising => VerticalSpeed > 0f;
 
-    void Start()
+    private void Awake()
     {
-        mainCamera = Camera.main;
+        if (gameplayCamera == null)
+            gameplayCamera = Camera.main;
+        body = GetComponent<Rigidbody2D>();
+        body.bodyType = RigidbodyType2D.Kinematic;
+        body.gravityScale = 0f;
+        catchableItem = GetComponent<CatchableItem>();
     }
 
-    void Update()
+    private void FixedUpdate()
+    {
+        float dt = Time.fixedDeltaTime;
+        Vector2 position = body.position;
+        float descentSpeed = GetDescentSpeed();
+
+        if (IsRising)
+        {
+            float gravity = Mathf.Max(0.1f, bounceGravity);
+            float ascentTime = Mathf.Min(dt, VerticalSpeed / gravity);
+            position.y += VerticalSpeed * ascentTime - 0.5f * gravity * ascentTime * ascentTime;
+            VerticalSpeed -= gravity * ascentTime;
+
+            if (VerticalSpeed <= 0.0001f)
+            {
+                position.y -= descentSpeed * (dt - ascentTime);
+                VerticalSpeed = -descentSpeed;
+            }
+        }
+        else
+        {
+            VerticalSpeed = -descentSpeed;
+            position.y += VerticalSpeed * dt;
+        }
+
+        body.MovePosition(position);
+
+        if (gameplayCamera != null && position.y <
+            gameplayCamera.transform.position.y - gameplayCamera.orthographicSize - 1f)
+            Destroy(gameObject);
+    }
+
+    public bool TryBounce(float speed)
+    {
+        if (!isActiveAndEnabled || IsRising || speed <= 0f)
+            return false;
+
+        VerticalSpeed = speed;
+        return true;
+    }
+
+    private void OnDisable()
+    {
+        if (body != null)
+            body.linearVelocity = Vector2.zero;
+        VerticalSpeed = 0f;
+    }
+
+    private float GetDescentSpeed()
     {
         float currentSpeed = fallSpeed;
 
-        switch (itemType)
+        ItemType effectiveType = itemType;
+        if (catchableItem != null && catchableItem.Definition != null)
+            effectiveType = catchableItem.Category == ItemCategory.Bug ? ItemType.Bug : ItemType.Fruit;
+
+        switch (effectiveType)
         {
             case ItemType.Fruit:
                 currentSpeed *= FruitMultiplier;
@@ -56,22 +121,7 @@ public class FallingObject : MonoBehaviour
                 break;
         }
 
-        currentSpeed = Mathf.Max(0f, currentSpeed);
-
-        transform.position +=
-            Vector3.down * currentSpeed * Time.deltaTime;
-
-        if (mainCamera != null)
-        {
-            float bottom =
-                mainCamera.transform.position.y
-                - mainCamera.orthographicSize - 1f;
-
-            if (transform.position.y < bottom)
-            {
-                Destroy(gameObject);
-            }
-        }
+        return Mathf.Max(0f, currentSpeed);
     }
 
     public void SetSpeed(float speed)

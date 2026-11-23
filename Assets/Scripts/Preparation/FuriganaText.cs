@@ -178,7 +178,7 @@ namespace FruitCatch.Preparation
             ruby.alignment = TextAlignmentOptions.Center;
             ruby.color = rubyColor;
             ruby.raycastTarget = false;
-            ruby.enableWordWrapping = false;
+            ruby.textWrappingMode = TextWrappingModes.NoWrap;
             ruby.overflowMode = TextOverflowModes.Overflow;
             rubyObjects.Add(ruby);
         }

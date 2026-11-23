@@ -27,12 +27,18 @@ public sealed class FruitCatchGameSession : MonoBehaviour
     [SerializeField] private GameManager gameManager;
     [SerializeField] private FallingItemSpawner itemSpawner;
     [SerializeField] private EaterCatchController eaterController;
+    [SerializeField] private CharacterPairController characterMovement;
+    [SerializeField] private ItemEffectController itemEffects;
+
+    public bool IsPlaying { get; private set; }
+    public float ElapsedTime { get; private set; }
+    public float RemainingTime => Mathf.Max(0f, gameDuration - ElapsedTime);
 
     [Header("Time")]
-    [SerializeField, Min(1f)] private float gameDuration = 50f;
+    [SerializeField, Min(1f)] private float gameDuration = 50f; // 本編の制限時間（秒）。
     [SerializeField, Min(0.1f)] private float startDisplayDuration = 1f;
     [SerializeField, Min(0.1f)] private float finishDisplayDuration = 1f;
-    [SerializeField, Min(0.1f)] private float resultDisplayDuration = 10f;
+    [SerializeField, Min(0.1f)] private float resultDisplayDuration = 10f; // 結果を表示して準備画面へ戻るまでの秒数。
     [SerializeField, Min(0f)] private float warningStartSeconds = 10f;
     [SerializeField, Min(0.1f)] private float warningBlinkInterval = 0.5f;
 
@@ -75,6 +81,8 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         if (announcementText != null)
             announcementText.gameObject.SetActive(false);
 
+        if (characterMovement != null)
+            characterMovement.SetMovementEnabled(false);
         UpdateTimer(gameDuration, false);
     }
 
@@ -85,30 +93,35 @@ public sealed class FruitCatchGameSession : MonoBehaviour
 
         yield return ShowAnnouncement("スタート！", startColor, startDisplayDuration);
 
+        ElapsedTime = 0f;
+        IsPlaying = true;
+        if (characterMovement != null)
+            characterMovement.SetMovementEnabled(true);
+        if (itemEffects != null)
+            itemEffects.BeginRun();
         if (itemSpawner != null)
-            itemSpawner.SetSpawningEnabled(true);
+            itemSpawner.BeginRun(gameDuration);
         if (eaterController != null)
             eaterController.enabled = true;
 
         float remaining = gameDuration;
         while (remaining > 0f)
         {
-            remaining = Mathf.Max(0f, remaining - Time.deltaTime);
+            ElapsedTime = Mathf.Min(gameDuration, ElapsedTime + Time.deltaTime);
+            remaining = RemainingTime;
+            if (itemSpawner != null)
+                itemSpawner.AdvanceTo(ElapsedTime);
             bool warning = remaining <= warningStartSeconds;
             UpdateTimer(remaining, warning);
+            if (remaining <= 0f)
+                break;
             yield return null;
         }
 
-        if (itemSpawner != null)
-            itemSpawner.SetSpawningEnabled(false);
-        if (eaterController != null)
-            eaterController.enabled = false;
-
-        FreezeFallingItems();
+        EndGameplay();
+        RemoveFallingItems();
         UpdateTimer(0f, true);
         yield return ShowAnnouncement("おわり！", finishColor, finishDisplayDuration);
-
-        RemoveFallingItems();
         ShowResults();
         yield return new WaitForSecondsRealtime(resultDisplayDuration);
 
@@ -171,15 +184,27 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         announcementText.gameObject.SetActive(false);
     }
 
-    private void FreezeFallingItems()
+    private void EndGameplay()
     {
-        foreach (FallingObject item in FindObjectsByType<FallingObject>(FindObjectsSortMode.None))
-            item.enabled = false;
+        IsPlaying = false;
+        if (itemSpawner != null)
+            itemSpawner.SetSpawningEnabled(false);
+        if (eaterController != null)
+            eaterController.enabled = false;
+        if (itemEffects != null)
+            itemEffects.StopEffects();
+        if (characterMovement != null)
+            characterMovement.SetMovementEnabled(false);
+    }
+
+    private void OnDisable()
+    {
+        EndGameplay();
     }
 
     private void RemoveFallingItems()
     {
-        foreach (FallingObject item in FindObjectsByType<FallingObject>(FindObjectsSortMode.None))
+        foreach (FallingObject item in FindObjectsByType<FallingObject>())
             Destroy(item.gameObject);
     }
 

@@ -1,32 +1,52 @@
 ﻿
 using UnityEngine;
 
-public enum ItemCategory
+public readonly struct ItemConsumption
 {
-    Fruit,
-    Bug
+    public ItemKind Kind { get; }
+    public ItemCategory Category { get; }
+    public string ItemId { get; }
+    public int ScoreDelta { get; }
+    public ItemEffectType Effect { get; }
+    public Vector3 WorldPosition { get; }
+
+    public ItemConsumption(ItemDefinition definition, Vector3 worldPosition)
+    {
+        Kind = definition.Kind;
+        Category = definition.Category;
+        ItemId = definition.ItemId;
+        ScoreDelta = definition.ScoreDelta;
+        Effect = definition.Effect;
+        WorldPosition = worldPosition;
+    }
 }
 
 public class CatchableItem : MonoBehaviour
 {
-    [Header("Item Information")]
-    [SerializeField] private ItemCategory category = ItemCategory.Fruit;
-    [SerializeField] private string itemId = "apple";
+    [SerializeField] private ItemDefinition definition;
 
-    [Header("Score")]
-    [SerializeField] private int scoreDelta = 10;
-
-    public ItemCategory Category => category;
-    public string ItemId => itemId;
-    public int ScoreDelta => scoreDelta;
+    public ItemDefinition Definition => definition;
+    public ItemKind Kind => definition != null ? definition.Kind : ItemKind.Fruit;
+    public ItemCategory Category => definition != null ? definition.Category : ItemCategory.Fruit;
+    public string ItemId => definition != null ? definition.ItemId : string.Empty;
+    public int ScoreDelta => definition != null ? definition.ScoreDelta : 0;
+    public bool IsConsumed => consumed;
 
     private bool consumed = false;
 
     public bool TryConsume()
     {
-        if (consumed) return false;
+        return TryConsume(out _);
+    }
+
+    public bool TryConsume(out ItemConsumption consumption)
+    {
+        consumption = default;
+        if (consumed || definition == null)
+            return false;
 
         consumed = true;
+        consumption = new ItemConsumption(definition, transform.position);
         Destroy(gameObject);
         return true;
     }
