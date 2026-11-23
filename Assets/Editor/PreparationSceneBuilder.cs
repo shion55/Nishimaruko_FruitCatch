@@ -195,13 +195,13 @@ public static class PreparationSceneBuilder
         GameObject panel = CreatePanel(parent, "03_FaceAndCarrier", true);
 
         GameObject faceArea = CreateRect("FaceAlignmentArea_Replaceable", panel.transform,
-            new Vector2(0.08f, 0.16f), new Vector2(0.46f, 0.68f), Vector2.zero, Vector2.zero);
+            new Vector2(0.06f, 0.12f), new Vector2(0.48f, 0.76f), Vector2.zero, Vector2.zero);
         Image areaImage = faceArea.AddComponent<Image>();
         areaImage.color = new Color(0.25f, 0.65f, 0.82f, 0.18f);
         CreateText(faceArea.transform, "AreaLabel", "顔合わせ領域（仮）", font, 32f,
             TextAlignmentOptions.Center, Vector2.zero, Vector2.one);
 
-        CreateText(panel.transform, "FacePrompt", "ここに顔をあわせてね", font, 46f,
+        CreateText(panel.transform, "FacePrompt", "わくのなかに\nひとりだけ うつってね", font, 46f,
             TextAlignmentOptions.Center, new Vector2(0.06f, 0.7f), new Vector2(0.48f, 0.86f));
         CreateText(panel.transform, "CarrierExplanation",
             "Carrier\n\n顔を横にうごかして\nEaterをはこんであげよう",
@@ -305,7 +305,7 @@ public static class PreparationSceneBuilder
     {
         GameObject root = CreateRect("FadeOverlay", parent, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
         Image image = root.AddComponent<Image>();
-        image.color = Color.black;
+        image.color = Color.white;
         CanvasGroup group = root.AddComponent<CanvasGroup>();
         group.alpha = 0f;
         group.blocksRaycasts = false;
@@ -374,6 +374,7 @@ public static class PreparationSceneBuilder
             step.FindPropertyRelative("panel").objectReferenceValue = panels[i];
             step.FindPropertyRelative("requiredSignal").enumValueIndex = (int)signals[i];
             step.FindPropertyRelative("requiredHoldSeconds").floatValue = holdSeconds[i];
+            step.FindPropertyRelative("showCountdown").boolValue = i == 1 || i == 4;
         }
 
         serialized.FindProperty("fadeOverlay").objectReferenceValue = fadeOverlay;

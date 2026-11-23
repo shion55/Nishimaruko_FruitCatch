@@ -16,7 +16,7 @@ namespace FruitCatch.Preparation
         [SerializeField, TextArea(2, 10), InspectorName("ふりがな付き文章 [漢字|かんじ]")]
         private string annotatedText;
         [SerializeField, Range(0.3f, 0.8f)] private float rubyFontScale = 0.5f;
-        [SerializeField] private float verticalOffset = 3f;
+        [SerializeField] private float verticalOffset = -2f;
         [SerializeField] private Color rubyColor = Color.black;
 
         private readonly List<TMP_Text> rubyObjects = new List<TMP_Text>();
@@ -50,6 +50,13 @@ namespace FruitCatch.Preparation
 
         private void OnDisable()
         {
+            if (rebuildCoroutine != null)
+            {
+                StopCoroutine(rebuildCoroutine);
+                rebuildCoroutine = null;
+            }
+
+            rebuildQueued = false;
             ClearRubyObjects();
         }
 

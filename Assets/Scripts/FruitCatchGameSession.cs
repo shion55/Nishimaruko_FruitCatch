@@ -3,6 +3,7 @@ using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 using FruitCatch.Preparation;
 
 [Serializable]
@@ -23,6 +24,10 @@ public sealed class ScoreMessageTier
 
 public sealed class FruitCatchGameSession : MonoBehaviour
 {
+    private CanvasGroup announcementBanner;
+    private FruitCatchRanking ranking;
+    private readonly RectTransform[] announcementSparkles = new RectTransform[8];
+
     [Header("Game References")]
     [SerializeField] private GameManager gameManager;
     [SerializeField] private FallingItemSpawner itemSpawner;
@@ -79,7 +84,7 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         if (resultsRoot != null)
             resultsRoot.SetActive(false);
         if (announcementText != null)
-            announcementText.gameObject.SetActive(false);
+            BuildAnnouncementBanner();
 
         if (characterMovement != null)
             characterMovement.SetMovementEnabled(false);
@@ -91,10 +96,12 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         if (gameManager != null)
             gameManager.ResetGameResults();
 
+        FruitCatchAudioManager.Instance.PlayStart();
         yield return ShowAnnouncement("スタート！", startColor, startDisplayDuration);
 
         ElapsedTime = 0f;
         IsPlaying = true;
+        FruitCatchAudioManager.Instance.PlayGameBgm();
         if (characterMovement != null)
             characterMovement.SetMovementEnabled(true);
         if (itemEffects != null)
@@ -119,14 +126,45 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         }
 
         EndGameplay();
+        FruitCatchAudioManager.Instance.FadeOutGameBgm();
         RemoveFallingItems();
         UpdateTimer(0f, true);
+        FruitCatchAudioManager.Instance.PlayFinish();
         yield return ShowAnnouncement("おわり！", finishColor, finishDisplayDuration);
         ShowResults();
         yield return new WaitForSecondsRealtime(resultDisplayDuration);
 
         if (!string.IsNullOrWhiteSpace(preparationSceneName))
             SceneManager.LoadScene(preparationSceneName);
+    }
+
+    private void BuildAnnouncementBanner()
+    {
+        RectTransform textRect = announcementText.rectTransform;
+        int sibling = textRect.GetSiblingIndex();
+        RectTransform banner = FruitCatchUi.Rect("AnnouncementBanner", textRect.parent,
+            new Vector2(0.12f, 0.35f), new Vector2(0.88f, 0.65f));
+        banner.SetSiblingIndex(sibling);
+        announcementBanner = banner.gameObject.AddComponent<CanvasGroup>();
+        announcementBanner.blocksRaycasts = false;
+
+        textRect.SetParent(banner, false);
+        FruitCatchUi.SetBounds(textRect, new Vector2(0.045f, 0.08f), new Vector2(0.955f, 0.92f));
+        announcementText.alignment = TextAlignmentOptions.Center;
+        announcementText.enableAutoSizing = true;
+        announcementText.fontSizeMin = 20f;
+        announcementText.fontSizeMax = 230f;
+        announcementText.margin = Vector4.zero;
+        announcementText.textWrappingMode = TextWrappingModes.NoWrap;
+        announcementText.outlineColor = new Color32(23, 15, 42, 255);
+        announcementText.outlineWidth = 0.22f;
+        announcementText.gameObject.SetActive(true);
+        for (int i = 0; i < announcementSparkles.Length; i++)
+        {
+            announcementSparkles[i] = CreateSparkle("AnnouncementSparkle_" + i, banner, 24f);
+            announcementSparkles[i].gameObject.SetActive(false);
+        }
+        banner.gameObject.SetActive(false);
     }
 
     private void UpdateTimer(float seconds, bool warning)
@@ -151,16 +189,28 @@ public sealed class FruitCatchGameSession : MonoBehaviour
 
     private IEnumerator ShowAnnouncement(string message, Color color, float duration)
     {
-        if (announcementText == null)
+        if (announcementBanner == null)
         {
             yield return new WaitForSecondsRealtime(duration);
             yield break;
         }
 
-        announcementText.gameObject.SetActive(true);
         announcementText.text = message;
-        announcementText.color = color;
-        RectTransform rect = announcementText.rectTransform;
+        bool isStart = message == "スタート！";
+        announcementText.color = Color.white;
+        announcementText.enableVertexGradient = true;
+        announcementText.colorGradient = isStart
+            ? new VertexGradient(new Color32(255, 250, 145, 255), new Color32(255, 225, 75, 255),
+                new Color32(255, 151, 35, 255), new Color32(255, 108, 35, 255))
+            : new VertexGradient(new Color32(184, 246, 255, 255), new Color32(135, 215, 255, 255),
+                new Color32(122, 145, 255, 255), new Color32(178, 116, 255, 255));
+        Color sparkleColor = isStart ? new Color32(255, 217, 75, 255) : new Color32(142, 226, 255, 255);
+        foreach (RectTransform sparkle in announcementSparkles)
+        {
+            foreach (Image image in sparkle.GetComponentsInChildren<Image>())
+                image.color = sparkleColor;
+        }
+        announcementBanner.gameObject.SetActive(true);
         float elapsed = 0f;
         float actualDuration = Mathf.Max(0.1f, duration);
 
@@ -168,20 +218,29 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         {
             elapsed += Time.unscaledDeltaTime;
             float t = Mathf.Clamp01(elapsed / actualDuration);
-            float scale = t < 0.65f
-                ? Mathf.Lerp(0.35f, 1.12f, Mathf.SmoothStep(0f, 1f, t / 0.65f))
-                : Mathf.Lerp(1.12f, 1f, Mathf.SmoothStep(0f, 1f, (t - 0.65f) / 0.35f));
-            rect.localScale = Vector3.one * scale;
-
-            Color current = color;
-            if (t > 0.78f)
-                current.a *= 1f - Mathf.InverseLerp(0.78f, 1f, t);
-            announcementText.color = current;
+            float entrance = Mathf.Clamp01(elapsed / 0.34f);
+            float scale = isStart
+                ? Mathf.Lerp(0.86f, 1f, entrance) + 0.1f * Mathf.Sin(entrance * Mathf.PI)
+                : Mathf.Lerp(1.18f, 1f, entrance) - 0.06f * Mathf.Sin(entrance * Mathf.PI);
+            announcementBanner.transform.localScale = Vector3.one * scale;
+            announcementBanner.alpha = 1f - Mathf.InverseLerp(0.88f, 1f, t);
+            float sparkleAmount = Mathf.Sin(Mathf.Clamp01(t / 0.42f) * Mathf.PI);
+            for (int i = 0; i < announcementSparkles.Length; i++)
+            {
+                RectTransform sparkle = announcementSparkles[i];
+                float angle = i * Mathf.PI * 2f / announcementSparkles.Length;
+                sparkle.gameObject.SetActive(sparkleAmount > 0.01f);
+                sparkle.anchoredPosition = new Vector2(Mathf.Cos(angle) * 300f,
+                    Mathf.Sin(angle) * 105f) * Mathf.Lerp(0.55f, 1f, entrance);
+                sparkle.localRotation = Quaternion.Euler(0f, 0f, i * 45f + entrance * 90f);
+                sparkle.localScale = Vector3.one * sparkleAmount * (i % 2 == 0 ? 1f : 0.7f);
+            }
             yield return null;
         }
 
-        rect.localScale = Vector3.one;
-        announcementText.gameObject.SetActive(false);
+        foreach (RectTransform sparkle in announcementSparkles)
+            sparkle.gameObject.SetActive(false);
+        announcementBanner.gameObject.SetActive(false);
     }
 
     private void EndGameplay()
@@ -200,6 +259,7 @@ public sealed class FruitCatchGameSession : MonoBehaviour
     private void OnDisable()
     {
         EndGameplay();
+        FruitCatchAudioManager.StopGameAudioIfAvailable();
     }
 
     private void RemoveFallingItems()
@@ -216,17 +276,132 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         int score = gameManager != null ? gameManager.Score : 0;
         int fruits = gameManager != null ? gameManager.FruitCount : 0;
         int bugs = gameManager != null ? gameManager.BugCount : 0;
+        RectTransform resultCard = resultTitle != null ? resultTitle.transform.parent as RectTransform : null;
+        bool isHighScore = false;
+
+        if (gameManager != null && resultsRoot != null && resultsRoot.transform is RectTransform results)
+        {
+            TMP_FontAsset font = announcementText != null ? announcementText.font : timerText?.font;
+            ranking = new FruitCatchRanking(results, resultCard, font);
+            isHighScore = ranking.Record(score);
+        }
 
         if (resultTitle != null)
-            resultTitle.SetAnnotatedText("けっか[発表|はっぴょう]");
+            resultTitle.SetAnnotatedText(isHighScore ? "ハイスコア！" : "けっか[発表|はっぴょう]");
         if (scoreResult != null)
             scoreResult.SetAnnotatedText($"とく[点|てん]　{score}");
         if (fruitResult != null)
-            fruitResult.SetAnnotatedText($"[食|た]べたくだもの　{fruits}こ");
+            fruitResult.SetAnnotatedText($"くだもの\n× {fruits}");
         if (bugResult != null)
-            bugResult.SetAnnotatedText($"[食|た]べたむし　{bugs}ひき");
+            bugResult.SetAnnotatedText($"むし\n× {bugs}");
         if (resultMessage != null)
             resultMessage.SetAnnotatedText(GetScoreMessage(score));
+
+        DecorateResultCounts(resultCard);
+        if (isHighScore && resultCard != null)
+        {
+            TMP_FontAsset font = announcementText != null ? announcementText.font : timerText?.font;
+            StartCoroutine(PlayHighScoreDecoration(resultCard, font));
+        }
+    }
+
+    private void DecorateResultCounts(RectTransform resultCard)
+    {
+        if (resultCard == null)
+            return;
+
+        if (resultCard.Find("FruitSummaryCard") == null)
+        {
+            Image fruitCard = FruitCatchUi.Fill("FruitSummaryCard", resultCard,
+                new Vector2(0.07f, 0.325f), new Vector2(0.495f, 0.61f),
+                new Color32(35, 112, 78, 235));
+            fruitCard.rectTransform.SetAsFirstSibling();
+            Image bugCard = FruitCatchUi.Fill("BugSummaryCard", resultCard,
+                new Vector2(0.505f, 0.325f), new Vector2(0.93f, 0.61f),
+                new Color32(103, 48, 118, 235));
+            bugCard.rectTransform.SetAsFirstSibling();
+        }
+
+        ConfigureResultCount(fruitResult, new Color32(255, 246, 183, 255));
+        ConfigureResultCount(bugResult, new Color32(255, 221, 245, 255));
+    }
+
+    private static void ConfigureResultCount(FuriganaText result, Color color)
+    {
+        if (result == null || !result.TryGetComponent(out TMP_Text text))
+            return;
+        text.alignment = TextAlignmentOptions.Center;
+        text.enableAutoSizing = true;
+        text.fontSizeMin = 22f;
+        text.fontSizeMax = 54f;
+        text.fontStyle = FontStyles.Bold;
+        text.color = color;
+        text.lineSpacing = -10f;
+    }
+
+    private IEnumerator PlayHighScoreDecoration(RectTransform resultCard, TMP_FontAsset font)
+    {
+        TMP_Text titleText = resultTitle != null ? resultTitle.GetComponent<TMP_Text>() : null;
+        if (titleText != null)
+        {
+            titleText.color = FruitCatchUi.Gold;
+            titleText.outlineColor = new Color32(84, 42, 18, 255);
+            titleText.outlineWidth = 0.18f;
+        }
+
+        RectTransform decoration = FruitCatchUi.Rect("HighScoreStars", resultCard,
+            new Vector2(0f, 0.7f), new Vector2(1f, 1f));
+        decoration.SetAsLastSibling();
+        const int starCount = 10;
+        var stars = new RectTransform[starCount];
+        for (int i = 0; i < stars.Length; i++)
+            stars[i] = CreateSparkle("Star_" + i, decoration, i % 2 == 0 ? 28f : 20f);
+
+        float duration = 1.1f;
+        for (float elapsed = 0f; elapsed < duration; elapsed += Time.unscaledDeltaTime)
+        {
+            float t = Mathf.Clamp01(elapsed / duration);
+            float burst = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t / 0.72f));
+            float fade = 1f - Mathf.InverseLerp(0.72f, 1f, t);
+            for (int i = 0; i < stars.Length; i++)
+            {
+                float angle = i * Mathf.PI * 2f / stars.Length;
+                stars[i].anchoredPosition = new Vector2(Mathf.Cos(angle) * 235f,
+                    Mathf.Sin(angle) * 90f) * Mathf.Lerp(0.18f, 1f, burst);
+                stars[i].localRotation = Quaternion.Euler(0f, 0f, i * 36f + burst * 110f);
+                stars[i].localScale = Vector3.one * Mathf.Sin(burst * Mathf.PI) * fade;
+            }
+            if (titleText != null)
+                titleText.rectTransform.localScale = Vector3.one *
+                    (1f + Mathf.Sin(Mathf.Clamp01(t / 0.45f) * Mathf.PI) * 0.14f);
+            yield return null;
+        }
+
+        if (titleText != null)
+            titleText.rectTransform.localScale = Vector3.one;
+        Destroy(decoration.gameObject);
+    }
+
+    private static RectTransform CreateSparkle(string name, Transform parent, float size)
+    {
+        RectTransform sparkle = FruitCatchUi.Rect(name, parent, Vector2.one * 0.5f, Vector2.one * 0.5f);
+        sparkle.sizeDelta = Vector2.one * size;
+        Image horizontal = FruitCatchUi.Fill("Horizontal", sparkle,
+            new Vector2(0f, 0.4f), new Vector2(1f, 0.6f), FruitCatchUi.Gold);
+        Image vertical = FruitCatchUi.Fill("Vertical", sparkle,
+            new Vector2(0.4f, 0f), new Vector2(0.6f, 1f), FruitCatchUi.Gold);
+        horizontal.raycastTarget = false;
+        vertical.raycastTarget = false;
+        return sparkle;
+    }
+
+    [ContextMenu("ランキングを全件リセット")]
+    private void ResetLocalRanking()
+    {
+        if (ranking != null)
+            ranking.Clear();
+        else
+            FruitCatchRanking.ClearSavedScores();
     }
 
     private string GetScoreMessage(int score)

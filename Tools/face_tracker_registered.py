@@ -3,7 +3,7 @@
 PythonがWebカメラを1台だけ開き、Unityのプレビューと顔追跡に共用する。
 
 Unity -> Python  UDP 5006: AUTO (3秒自動登録), REGISTER (従来の即時登録), CLEAR, PING
-Python -> Unity  UDP 5005: 登録者のX座標 (従来どおり "0.5123")
+Python -> Unity  UDP 5015: 登録者のX座標 (従来どおり "0.5123")
 Python -> Unity  UDP 5007: 登録・追跡状態 (REGISTERED / TRACKING / LOSTなど)
 Python -> Unity  HTTP 127.0.0.1:8765/frame.jpg: 640x480 JPEGおよび進捗ヘッダー
 
@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import socket
+import math
 import threading
 import time
 import urllib.request
@@ -32,7 +33,7 @@ import numpy as np
 # ====== カメラ・通信 ======
 CAMERA_INDEX = 0
 UNITY_IP = "127.0.0.1"
-UNITY_POSITION_PORT = 5005
+UNITY_POSITION_PORT = 5015
 PYTHON_COMMAND_PORT = 5006
 UNITY_STATUS_PORT = 5007
 PREVIEW_HOST = "127.0.0.1"
@@ -53,6 +54,7 @@ MIN_POSE_VISIBILITY = 0.55
 
 # ====== 位置合わせ・登録 ======
 HOLD_SECONDS = 3.0
+DETECTION_GRACE_SECONDS = 0.25
 CENTER_TOLERANCE_X = 0.12  # 元画像の中心から±12%
 CENTER_TOLERANCE_Y = 0.13
 MIN_FACE_WIDTH_RATIO = 0.21
@@ -101,14 +103,24 @@ class TrackingState:
     last_seen_at: float = 0.0
     last_status: str = "IDLE"
     frame_count: int = 0
+    registration_id: str = ""
+    guide_region: tuple[float, float, float, float] | None = None
+    hold_elapsed: float = 0.0
+    hold_last_valid: float | None = None
+    missing_since: float | None = None
 
     def reset_hold(self, hint: str) -> None:
         self.hold_start = None
         self.hold_descriptor = None
+        self.hold_elapsed = 0.0
+        self.hold_last_valid = None
+        self.missing_since = None
         self.progress = 0.0
         self.hint = hint
 
     def clear(self) -> None:
+        self.registration_id = ""
+        self.guide_region = None
         self.profiles.clear()
         self.pending_register = False
         self.auto_register = False
@@ -129,9 +141,10 @@ class PreviewBuffer:
         self.hint = "WAITING"
         self.registered = False
         self.hands_raised = False
+        self.registration_id = ""
 
     def update(self, jpeg: bytes | None, progress: float, hint: str,
-               registered: bool, hands_raised: bool) -> None:
+               registered: bool, hands_raised: bool, registration_id: str = "") -> None:
         with self.lock:
             if jpeg is not None:
                 self.jpeg = jpeg
@@ -139,10 +152,11 @@ class PreviewBuffer:
             self.hint = hint
             self.registered = registered
             self.hands_raised = hands_raised
+            self.registration_id = registration_id
 
-    def snapshot(self) -> tuple[bytes | None, float, str, bool, bool]:
+    def snapshot(self) -> tuple[bytes | None, float, str, bool, bool, str]:
         with self.lock:
-            return self.jpeg, self.progress, self.hint, self.registered, self.hands_raised
+            return self.jpeg, self.progress, self.hint, self.registered, self.hands_raised, self.registration_id
 
 
 def make_preview_handler(shared: PreviewBuffer):
@@ -152,7 +166,7 @@ def make_preview_handler(shared: PreviewBuffer):
                 self.send_error(404)
                 return
 
-            jpeg, progress, hint, registered, hands_raised = shared.snapshot()
+            jpeg, progress, hint, registered, hands_raised, registration_id = shared.snapshot()
             if jpeg is None:
                 self.send_response(503)
                 self.send_header("Content-Length", "0")
@@ -167,6 +181,7 @@ def make_preview_handler(shared: PreviewBuffer):
             self.send_header("X-Hint", hint)
             self.send_header("X-Registered", "1" if registered else "0")
             self.send_header("X-Hands-Raised", "1" if hands_raised else "0")
+            self.send_header("X-Registration-Id", registration_id)
             self.end_headers()
             try:
                 self.wfile.write(jpeg)
@@ -270,7 +285,30 @@ def read_commands(command_sock: socket.socket, state: TrackingState, status_sock
             print("コマンド受信エラー:", exc)
             break
         command = data.decode("utf-8", errors="replace").strip().upper()
-        if command in ("AUTO", "REGISTER"):
+        if command.startswith("AUTO_REGION "):
+            parts = command.split()
+            try:
+                if len(parts) != 6 or len(parts[1]) != 32 or any(c not in "0123456789ABCDEF" for c in parts[1]):
+                    raise ValueError("Invalid registration id")
+                region = tuple(float(value) for value in parts[2:])
+                x, y, w, h = region
+                if (not all(math.isfinite(v) for v in region) or
+                        x < 0 or y < 0 or w <= 0 or h <= 0 or x + w > 1.001 or y + h > 1.001):
+                    raise ValueError("Guide must be inside the preview")
+            except ValueError:
+                send_status(status_sock, state, "INVALID_REGION", force=True)
+                continue
+            # Retries acknowledge the same request without restarting the hold timer.
+            if state.registration_id == parts[1]:
+                continue
+            state.clear()
+            state.registration_id = parts[1]
+            state.guide_region = region
+            state.pending_register = True
+            state.auto_register = True
+            state.hint = "NO_FACE"
+            send_status(status_sock, state, "ALIGNING", force=True)
+        elif command in ("AUTO", "REGISTER"):
             state.clear()
             state.pending_register = True
             state.auto_register = command == "AUTO"
@@ -285,12 +323,16 @@ def read_commands(command_sock: socket.socket, state: TrackingState, status_sock
             send_status(status_sock, state, "UNKNOWN_COMMAND", force=True)
 
 
-def check_alignment(face: Face, frame_width: int, frame_height: int) -> str:
-    """固定中心の円形プレビューに自然に顔を収めるための位置・距離チェック。"""
+def check_alignment(face: Face, frame_width: int, frame_height: int,
+                    region: tuple[float, float, float, float] | None = None) -> str:
+    """案内枠内に顔の中心があるかを確認する。顔の表示サイズは問わない。"""
     cx = face.center[0] / frame_width
     cy = face.center[1] / frame_height
-    width_ratio = face.rect[2] / frame_width
+    if region is not None:
+        x, y, w, h = region
+        return "HOLD" if x <= cx <= x + w and y <= cy <= y + h else "MOVE_CENTER"
 
+    width_ratio = face.rect[2] / frame_width
     if width_ratio < MIN_FACE_WIDTH_RATIO:
         return "MOVE_CLOSER"
     if width_ratio > MAX_FACE_WIDTH_RATIO:
@@ -352,18 +394,33 @@ def process_registration(
     faces: list[Face],
     status_sock: socket.socket,
 ) -> int | None:
-    if not faces:
-        state.reset_hold("NO_FACE")
+    candidates = list(enumerate(faces))
+    if state.auto_register and state.guide_region is not None:
+        x, y, w, h = state.guide_region
+        candidates = [(i, face) for i, face in candidates
+                      if x <= face.center[0] / frame.shape[1] <= x + w and
+                      y <= face.center[1] / frame.shape[0] <= y + h]
+    if not candidates and faces and state.guide_region is not None:
+        state.reset_hold("MOVE_CENTER")
+        send_status(status_sock, state, "MOVE_CENTER")
+        return None
+    if not candidates:
+        now = time.monotonic()
+        if state.missing_since is None:
+            state.missing_since = now
+        state.hold_last_valid = None  # Pause rather than count unseen time.
+        if state.hold_start is None or now - state.missing_since > DETECTION_GRACE_SECONDS:
+            state.reset_hold("NO_FACE")
         send_status(status_sock, state, "NO_FACE")
         return None
-    if len(faces) != 1:
+    if len(candidates) != 1:
         state.reset_hold("MULTIPLE_FACES")
         send_status(status_sock, state, "MULTIPLE_FACES")
         return None
 
-    face = faces[0]
+    face_index, face = candidates[0]
     if state.auto_register:
-        hint = check_alignment(face, frame.shape[1], frame.shape[0])
+        hint = check_alignment(face, frame.shape[1], frame.shape[0], state.guide_region)
         if hint != "HOLD":
             state.reset_hold(hint)
             send_status(status_sock, state, hint)
@@ -377,9 +434,12 @@ def process_registration(
 
     if not state.auto_register:
         complete_registration(state, face, descriptor, status_sock)
-        return 0
+        return face_index
 
     now = time.monotonic()
+    if state.missing_since is not None and now - state.missing_since > DETECTION_GRACE_SECONDS:
+        state.reset_hold("HOLD")
+    state.missing_since = None
     if state.hold_descriptor is not None:
         similarity = float(np.dot(state.hold_descriptor, descriptor))
         if similarity < HOLD_IDENTITY_THRESHOLD:
@@ -389,12 +449,18 @@ def process_registration(
         state.hold_start = now
         state.hold_descriptor = descriptor.copy()
 
-    state.progress = min(1.0, (now - state.hold_start) / HOLD_SECONDS)
+    if state.hold_last_valid is not None:
+        gap = now - state.hold_last_valid
+        # Slow inference should take longer, rather than resetting forever on
+        # lower-spec PCs. A long stall cannot count as several unseen seconds.
+        state.hold_elapsed += min(gap, DETECTION_GRACE_SECONDS)
+    state.hold_last_valid = now
+    state.progress = min(1.0, state.hold_elapsed / HOLD_SECONDS)
     state.hint = "HOLD"
     send_status(status_sock, state, "HOLD")
     if state.progress >= 1.0:
         complete_registration(state, face, descriptor, status_sock)
-        return 0
+        return face_index
     return None
 
 
@@ -533,7 +599,7 @@ def run() -> None:
                     success, encoded = cv2.imencode(".jpg", frame,
                                                     [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
                     shared.update(encoded.tobytes() if success else None,
-                                  state.progress, state.hint, state.active, hands_raised)
+                                  state.progress, state.hint, state.active, hands_raised, state.registration_id)
                     last_preview_at = now
 
                 if SHOW_DEBUG_WINDOW:

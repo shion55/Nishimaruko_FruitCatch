@@ -260,7 +260,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
-  m_Material: {fileID: 0}
+  m_Material: {fileID: 2100000, guid: c5eac3d04258ffe4db869183c1d75bd9, type: 2}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
@@ -384,7 +384,7 @@ MonoBehaviour:
   m_characterSpacing: 0
   m_characterHorizontalScale: 1
   m_wordSpacing: 0
-  m_lineSpacing: 0
+  m_lineSpacing: 30
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
@@ -438,7 +438,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.FuriganaText
   annotatedText: "\u3080\u3057\n\n[\u98DF|\u305F]\u3079\u308B\u3068\n\u3068\u304F[\u70B9|\u3066\u3093]\u30C0\u30A6\u30F3\u2026"
   rubyFontScale: 0.5
-  verticalOffset: 3
+  verticalOffset: -2
   rubyColor: {r: 0.08, g: 0.1, b: 0.12, a: 1}
 --- !u!1 &135840923
 GameObject:
@@ -881,7 +881,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.FuriganaText
   annotatedText: "\u304B\u304A\u3092\u3042\u308F\u305B\u308B\u3068\u3053\u308D"
   rubyFontScale: 0.5
-  verticalOffset: 3
+  verticalOffset: -2
   rubyColor: {r: 0.08, g: 0.1, b: 0.12, a: 1}
 --- !u!1 &373985859
 GameObject:
@@ -1401,7 +1401,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.FuriganaText
   annotatedText: "Carrier\n\n[\u9854|\u304B\u304A]\u3092[\u6A2A|\u3088\u3053]\u306B[\u52D5|\u3046\u3054]\u304B\u3057\u3066\nEater\u3092\u306F\u3053\u3093\u3067\u3042\u3052\u3088\u3046"
   rubyFontScale: 0.5
-  verticalOffset: 3
+  verticalOffset: -2
   rubyColor: {r: 0.08, g: 0.1, b: 0.12, a: 1}
 --- !u!1 &622190654
 GameObject:
@@ -1630,7 +1630,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.FuriganaText
   annotatedText: "\u3058\u3085\u3093\u3073\u306F\u3044\u3044\u304B\u306A\uFF1F\n\u306F\u3058\u3081\u308B\u3088"
   rubyFontScale: 0.5
-  verticalOffset: 3
+  verticalOffset: -2
   rubyColor: {r: 0.08, g: 0.1, b: 0.12, a: 1}
 --- !u!1 &930587012
 GameObject:
@@ -1647,7 +1647,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &930587013
 RectTransform:
   m_ObjectHideFlags: 0
@@ -2048,7 +2048,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.FuriganaText
   annotatedText: "\u30DE\u30A4\u30AF\u306B\u3080\u304B\u3063\u3066\u3001[\u58F0|\u3053\u3048]\u3092[\u51FA|\u3060]\u3057\u3066\u306D"
   rubyFontScale: 0.5
-  verticalOffset: 3
+  verticalOffset: -2
   rubyColor: {r: 1, g: 1, b: 1, a: 1}
 --- !u!1 &1021879509
 GameObject:
@@ -2061,6 +2061,7 @@ GameObject:
   - component: {fileID: 1021879510}
   - component: {fileID: 1021879512}
   - component: {fileID: 1021879511}
+  - component: {fileID: 1021879513}
   m_Layer: 0
   m_Name: FaceAlignmentArea_Replaceable
   m_TagString: Untagged
@@ -2083,8 +2084,8 @@ RectTransform:
   - {fileID: 329682925}
   m_Father: {fileID: 930587013}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.08, y: 0.16}
-  m_AnchorMax: {x: 0.46, y: 0.68}
+  m_AnchorMin: {x: 0.06, y: 0.12}
+  m_AnchorMax: {x: 0.48, y: 0.76}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -2126,6 +2127,23 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1021879509}
   m_CullTransparentMesh: 1
+--- !u!114 &1021879513
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1021879509}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b7eb90bf5a5047d7aa1cc1ff6bf1f301, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.PreparationFacePresentation
+  cameraImage: {fileID: 373985862}
+  carrierSprite: {fileID: 21300000, guid: 44553906fb44b0c4d8d5f77f3044730a, type: 3}
+  readingBackdrop: {fileID: 1839116932}
+  morphDuration: 1.5
+  carrierHoldSeconds: 1
 --- !u!1 &1131647622
 GameObject:
   m_ObjectHideFlags: 0
@@ -2303,7 +2321,7 @@ MonoBehaviour:
   m_characterSpacing: 0
   m_characterHorizontalScale: 1
   m_wordSpacing: 0
-  m_lineSpacing: 0
+  m_lineSpacing: 30
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
@@ -2357,7 +2375,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.FuriganaText
   annotatedText: "\u304F\u3060\u3082\u306E\n\n[\u98DF|\u305F]\u3079\u308B\u3068\n\u3068\u304F[\u70B9|\u3066\u3093]\u30A2\u30C3\u30D7\uFF01"
   rubyFontScale: 0.5
-  verticalOffset: 3
+  verticalOffset: -2
   rubyColor: {r: 0.08, g: 0.1, b: 0.12, a: 1}
 --- !u!1 &1194476322
 GameObject:
@@ -2483,7 +2501,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 1}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -3009,7 +3027,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.FuriganaText
   annotatedText: "[\u4E21\u624B|\u308A\u3087\u3046\u3066]\u3092[\u4E0A|\u3042]\u3052\u308B\u3068\u306F\u3058\u307E\u308B\u3088"
   rubyFontScale: 0.5
-  verticalOffset: 3
+  verticalOffset: -2
   rubyColor: {r: 1, g: 1, b: 1, a: 1}
 --- !u!1 &1411809551
 GameObject:
@@ -3109,7 +3127,7 @@ MonoBehaviour:
   m_characterSpacing: 0
   m_characterHorizontalScale: 1
   m_wordSpacing: 0
-  m_lineSpacing: 0
+  m_lineSpacing: 30
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
@@ -3163,7 +3181,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.FuriganaText
   annotatedText: "\u30D5\u30A3\u30FC\u30D0\u30FC\u304F\u3060\u3082\u306E\n\n\u3068\u308B\u3068\u30D5\u30A3\u30FC\u30D0\u30FC\u30BF\u30A4\u30E0\u304C\n\u306F\u3058\u307E\u308B\u3088"
   rubyFontScale: 0.5
-  verticalOffset: 3
+  verticalOffset: -2
   rubyColor: {r: 0.08, g: 0.1, b: 0.12, a: 1}
 --- !u!1 &1502833444
 GameObject:
@@ -3354,7 +3372,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.FuriganaText
   annotatedText: "\u30A2\u30A4\u30C6\u30E0\u306E\u305B\u3064\u3081\u3044"
   rubyFontScale: 0.5
-  verticalOffset: 3
+  verticalOffset: -2
   rubyColor: {r: 0.08, g: 0.1, b: 0.12, a: 1}
 --- !u!1 &1578108402
 GameObject:
@@ -3655,7 +3673,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.FuriganaText
   annotatedText: "\u30AB\u30E1\u30E9\u306A\u3057\uFF08\u304B\u3044\u306F\u3064\u30E2\u30FC\u30C9\uFF09"
   rubyFontScale: 0.5
-  verticalOffset: 3
+  verticalOffset: -2
   rubyColor: {r: 0.78, g: 0.84, b: 0.88, a: 1}
 --- !u!1 &1680205361
 GameObject:
@@ -3830,7 +3848,7 @@ MonoBehaviour:
   m_characterSpacing: 0
   m_characterHorizontalScale: 1
   m_wordSpacing: 0
-  m_lineSpacing: 0
+  m_lineSpacing: 20.55
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
@@ -3884,7 +3902,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.FuriganaText
   annotatedText: "Eater\n\n[\u58F0|\u3053\u3048]\u3092[\u51FA|\u3060]\u3059\u3068[\u53E3|\u304F\u3061]\u3092\u3072\u3089\u3044\u3066\n\u304F\u3060\u3082\u306E\u3092[\u98DF|\u305F]\u3079\u3089\u308C\u308B\u3088\n\n[\u58F0|\u3053\u3048]\u306E[\u9AD8|\u305F\u304B]\u3055\u3092\u304B\u3048\u308B\u3068\n\u306A\u306B\u304B\u304C\u304B\u308F\u308B\u304B\u3082\uFF01"
   rubyFontScale: 0.5
-  verticalOffset: 3
+  verticalOffset: -2
   rubyColor: {r: 0.08, g: 0.1, b: 0.12, a: 1}
 --- !u!1 &1793840063
 GameObject:
@@ -3924,26 +3942,32 @@ MonoBehaviour:
     panel: {fileID: 1581069438}
     requiredSignal: 1
     requiredHoldSeconds: 1
+    showCountdown: 0
   - displayName: "2\u4EBA\u30D7\u30EC\u30A4\u8AAC\u660E"
     panel: {fileID: 1502833444}
     requiredSignal: 4
     requiredHoldSeconds: 7
+    showCountdown: 1
   - displayName: "\u9854\u30FBCarrier"
     panel: {fileID: 930587012}
     requiredSignal: 2
     requiredHoldSeconds: 0.1
+    showCountdown: 0
   - displayName: "\u58F0\u30FBEater"
     panel: {fileID: 1327171180}
     requiredSignal: 3
     requiredHoldSeconds: 1
+    showCountdown: 0
   - displayName: "\u30A2\u30A4\u30C6\u30E0\u8AAC\u660E"
     panel: {fileID: 218187013}
     requiredSignal: 4
     requiredHoldSeconds: 7
+    showCountdown: 1
   - displayName: "\u6E96\u5099\u30FB\u30AB\u30A6\u30F3\u30C8\u30C0\u30A6\u30F3"
     panel: {fileID: 440305288}
     requiredSignal: 4
     requiredHoldSeconds: 2
+    showCountdown: 0
   fadeOverlay: {fileID: 1203388367}
   fadeDuration: 0.35
   gameplaySceneName: MainGame
@@ -4006,7 +4030,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.PreparationVoiceDetector
   flow: {fileID: 1793840064}
   microphone: {fileID: 1793840068}
-  gainThreshold: 0.1
+  gainThreshold: 0.015
+  releaseGraceSeconds: 0.2
+  eaterImage: {fileID: 2128951527}
+  mouthOpenSprite: {fileID: 21300000, guid: 5cb3e85f5639c8a47b21fcfa86bf5664, type: 3}
 --- !u!114 &1793840068
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4139,7 +4166,7 @@ MonoBehaviour:
   m_characterSpacing: 0
   m_characterHorizontalScale: 1
   m_wordSpacing: 0
-  m_lineSpacing: 0
+  m_lineSpacing: 56.5
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
@@ -4193,7 +4220,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.FuriganaText
   annotatedText: "\u3053\u306E\u30B2\u30FC\u30E0\u306F[\u4E8C\u4EBA|\u3075\u305F\u308A]\u3067[\u904A|\u3042\u305D]\u3076\u3088\n\n\u2460\u3000[\u9854|\u304B\u304A]\u3092[\u52D5|\u3046\u3054]\u304B\u3059[\u4EBA|\u3072\u3068]\n\u2461\u3000[\u58F0|\u3053\u3048]\u3092[\u51FA|\u3060]\u3059[\u4EBA|\u3072\u3068]\n\n\u307E\u305A\u306F\u3001[\u9854|\u304B\u304A]\u3092[\u52D5|\u3046\u3054]\u304B\u3059[\u4EBA|\u3072\u3068]\u3092\u304D\u3081\u3066\u306D"
   rubyFontScale: 0.5
-  verticalOffset: 3
+  verticalOffset: -2
   rubyColor: {r: 0.08, g: 0.1, b: 0.12, a: 1}
 --- !u!1 &1839116930
 GameObject:
@@ -4577,7 +4604,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 56
+  m_fontSize: 46.95
   m_fontSizeBase: 46
   m_fontWeight: 400
   m_enableAutoSizing: 1
@@ -4642,9 +4669,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 57155b523cd632d4d97d297a92ec9702, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.FuriganaText
-  annotatedText: "[\u9854|\u304B\u304A]\u3092\u308F\u304F\u306B[\u5408|\u3042]\u308F\u305B\u3066\u306D"
+  annotatedText: "\u308F\u304F\u306E\u306A\u304B\u306B\n[\u4E00\u4EBA|\u3072\u3068\u308A]\u3060\u3051 \u3046\u3064\u3063\u3066\u306D"
   rubyFontScale: 0.5
-  verticalOffset: 3
+  verticalOffset: -2
   rubyColor: {r: 1, g: 1, b: 1, a: 1}
 --- !u!1 &2087549090
 GameObject:
@@ -4756,7 +4783,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.08, y: 0.25}
   m_AnchorMax: {x: 0.43, y: 0.78}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: -104}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &2128951527

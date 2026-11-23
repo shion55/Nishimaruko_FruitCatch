@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Globalization;
 using System.Net.Sockets;
 using System.Text;
 using UnityEngine;
@@ -28,6 +29,11 @@ namespace FruitCatch.Preparation
         private UdpClient commandClient;
         private bool faceRegistrationArmed;
         private float nextFaceCommandTime;
+        private string registrationId;
+        private string registrationCommand;
+        private PreparationFacePresentation presentation;
+        private bool wasFaceStep;
+        private Rect guideUv;
 
         private void Reset()
         {
@@ -53,17 +59,54 @@ namespace FruitCatch.Preparation
             if (flow == null)
                 return;
 
-            bool isFaceStep = flow.CurrentRequiredSignal == PreparationSignal.FaceAligned;
-            if (isFaceStep && !faceRegistrationArmed && Time.unscaledTime >= nextFaceCommandTime)
+            bool isFaceStep = flow.CurrentRequiredSignal == PreparationSignal.FaceAligned &&
+                flow.CurrentPanel != null && flow.CurrentPanel.activeInHierarchy;
+            if (isFaceStep && !flow.IsTransitioning)
             {
-                SendCommand("AUTO");
-                nextFaceCommandTime = Time.unscaledTime + 1f;
+                if (!wasFaceStep)
+                {
+                    presentation = flow.CurrentPanel.GetComponentInChildren<PreparationFacePresentation>();
+                    Canvas.ForceUpdateCanvases();
+                    BeginRegistration();
+                }
+                else if (presentation != null && GuideChanged(presentation.GetGuideUv()))
+                    BeginRegistration();
+
+                if (!faceRegistrationArmed && Time.unscaledTime >= nextFaceCommandTime)
+                {
+                    SendCommand(registrationCommand);
+                    nextFaceCommandTime = Time.unscaledTime + 1f;
+                }
+                wasFaceStep = true;
             }
             else if (!isFaceStep)
             {
+                wasFaceStep = false;
                 faceRegistrationArmed = false;
                 nextFaceCommandTime = 0f;
+                registrationId = null;
+                presentation = null;
             }
+        }
+
+        private bool GuideChanged(Rect current)
+        {
+            const float tolerance = 0.0001f;
+            return Mathf.Abs(current.x - guideUv.x) > tolerance || Mathf.Abs(current.y - guideUv.y) > tolerance ||
+                Mathf.Abs(current.width - guideUv.width) > tolerance || Mathf.Abs(current.height - guideUv.height) > tolerance;
+        }
+
+        private void BeginRegistration()
+        {
+            registrationId = Guid.NewGuid().ToString("N").ToUpperInvariant();
+            guideUv = presentation != null ? presentation.GetGuideUv() : new Rect(0.25f, 0.15f, 0.5f, 0.7f);
+            registrationCommand = string.Format(CultureInfo.InvariantCulture,
+                "AUTO_REGION {0} {1:F5} {2:F5} {3:F5} {4:F5}", registrationId,
+                guideUv.x, 1f - guideUv.yMax, guideUv.width, guideUv.height);
+            faceRegistrationArmed = false;
+            nextFaceCommandTime = 0f;
+            flow.ReportFaceAligned(false);
+            presentation?.ResetPresentation();
         }
 
         private IEnumerator PollPreview()
@@ -95,21 +138,30 @@ namespace FruitCatch.Preparation
                         }
 
                         bool handsRaised = request.GetResponseHeader("X-Hands-Raised") == "1";
-                        bool faceAligned = request.GetResponseHeader("X-Registered") == "1";
+                        bool currentRegistration = registrationId != null &&
+                            request.GetResponseHeader("X-Registration-Id") == registrationId;
+                        bool faceAligned = currentRegistration && request.GetResponseHeader("X-Registered") == "1";
                         string hint = request.GetResponseHeader("X-Hint");
-                        if (flow != null && flow.CurrentRequiredSignal == PreparationSignal.FaceAligned &&
-                            (!string.IsNullOrEmpty(hint) && hint != "WAITING"))
+                        if (currentRegistration)
                         {
                             faceRegistrationArmed = true;
+                            float.TryParse(request.GetResponseHeader("X-Progress"), NumberStyles.Float,
+                                CultureInfo.InvariantCulture, out float progress);
+                            presentation?.SetStatus(hint, Mathf.Clamp01(progress));
+                            if (faceAligned) presentation?.Capture(previewTexture);
                         }
+                        else
+                            faceRegistrationArmed = false;
                         flow?.ReportHandsRaised(handsRaised);
                         flow?.ReportFaceAligned(faceAligned);
                     }
                     else
                     {
+                        faceRegistrationArmed = false;
                         cameraSurface?.SetCameraAvailable(false);
                         flow?.ReportHandsRaised(false);
                         flow?.ReportFaceAligned(false);
+                        presentation?.SetStatus("OFFLINE", 0f);
                     }
                 }
 

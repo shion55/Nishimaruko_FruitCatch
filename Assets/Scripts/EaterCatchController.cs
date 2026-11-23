@@ -154,6 +154,7 @@ public class EaterCatchController : MonoBehaviour
 
         if (consumption.Category == ItemCategory.Fruit)
         {
+            FruitCatchAudioManager.Instance.PlayFruitEat();
             eatingTimer.Refresh(eatingCloseDuration);
             if (eatingTimer.IsActive)
                 myspriterenderer.sprite = ClosingImage;
@@ -192,11 +193,15 @@ public class EaterCatchController : MonoBehaviour
                 item.Category == ItemCategory.Fruit)
             {
                 FallingObject falling = item.GetComponent<FallingObject>();
-                if (falling != null && falling.TryBounce(bounceSpeed) && catchEffectPlayer != null)
+                if (falling != null && falling.TryBounce(bounceSpeed))
                 {
-                    Vector2 contact = sensor.ClosestPoint(other.bounds.center);
-                    catchEffectPlayer.PlayBounceEffect(
-                        new Vector3(contact.x, contact.y, item.transform.position.z), sensor == leftBounceSensor);
+                    FruitCatchAudioManager.Instance.PlayFruitBounce();
+                    if (catchEffectPlayer != null)
+                    {
+                        Vector2 contact = sensor.ClosestPoint(other.bounds.center);
+                        catchEffectPlayer.PlayBounceEffect(
+                            new Vector3(contact.x, contact.y, item.transform.position.z), sensor == leftBounceSensor);
+                    }
                 }
             }
         }

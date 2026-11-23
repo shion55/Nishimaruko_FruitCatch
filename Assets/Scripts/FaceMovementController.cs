@@ -9,7 +9,7 @@ using System.Globalization;
 public class FaceMovementController : MonoBehaviour
 {
     // Pythonから顔位置を受信し、移動側へ正規化した目標位置を渡す。
-    [SerializeField] private int port = 5005;
+    [SerializeField] private int port = 5015;
 
     [SerializeField] private float inputMinX = 0.25f;
     [SerializeField] private float inputMaxX = 0.75f;

@@ -14,7 +14,7 @@ using UnityEngine.UI;
 /// 登録シーン用: Pythonのカメラ映像をUnityのRawImageに表示し、
 /// 顔が中央に3秒入ったら自動登録 → ゲームシーンに移動する。
 /// 
-/// 既存のゲーム中の顔X座標受信(UDP 5005)は変更しない。
+/// ゲーム中の顔X座標はUDP 5015で受信する。
 /// このスクリプトは以前のFaceRegistrationController.csと置き換える。
 /// </summary>
 public class FaceRegistrationController : MonoBehaviour

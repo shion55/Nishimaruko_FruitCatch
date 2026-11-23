@@ -41,7 +41,7 @@ public static class MainGameFaceInputInstaller
         if (controller != null)
         {
             SerializedObject serialized = new SerializedObject(controller);
-            serialized.FindProperty("port").intValue = 5005;
+            serialized.FindProperty("port").intValue = 5015;
             serialized.FindProperty("movefacetoggle").boolValue = false;
             serialized.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(controller);

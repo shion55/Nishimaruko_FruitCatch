@@ -24,11 +24,13 @@ namespace FruitCatch.Preparation
         [SerializeField] private GameObject panel;
         [SerializeField] private PreparationSignal requiredSignal = PreparationSignal.Manual;
         [SerializeField, Min(0f)] private float requiredHoldSeconds = 0.8f;
+        [SerializeField] private bool showCountdown;
 
         public string DisplayName => displayName;
         public GameObject Panel => panel;
         public PreparationSignal RequiredSignal => requiredSignal;
         public float RequiredHoldSeconds => requiredHoldSeconds;
+        public bool ShowCountdown => showCountdown;
     }
 
     /// <summary>
@@ -62,9 +64,16 @@ namespace FruitCatch.Preparation
         private bool voiceDetected;
         private bool transitioning;
         private bool simulatedCameraAvailable;
+        private readonly Dictionary<PreparationStep, PreparationCountdown> stepCountdowns = new();
+        private PreparationCountdown startCountdown;
 
         public int CurrentStepIndex => currentStepIndex;
         public bool DevelopmentMode => developmentMode;
+        public bool IsTransitioning => transitioning;
+        public float CurrentSignalProgress => steps.Count > 0 && currentStepIndex < steps.Count
+            ? Mathf.Clamp01(signalHoldTime / Mathf.Max(0.001f, steps[currentStepIndex].RequiredHoldSeconds)) : 0f;
+        public GameObject CurrentPanel => steps.Count > 0 && currentStepIndex < steps.Count
+            ? steps[currentStepIndex].Panel : null;
         public PreparationSignal CurrentRequiredSignal =>
             steps.Count > 0 && currentStepIndex < steps.Count
                 ? steps[currentStepIndex].RequiredSignal
@@ -72,8 +81,22 @@ namespace FruitCatch.Preparation
 
         private void Start()
         {
+            if (countdownText != null)
+                startCountdown = new PreparationCountdown(countdownText.transform.parent,
+                    countdownText.font, true, countdownText);
+
+            foreach (PreparationStep step in steps)
+            {
+                if (step.ShowCountdown && step.RequiredSignal == PreparationSignal.Timed && step.Panel != null)
+                {
+                    TMP_Text template = countdownText != null ? countdownText :
+                        step.Panel.GetComponentInChildren<TMP_Text>(true);
+                    stepCountdowns.Add(step, new PreparationCountdown(step.Panel.transform, template?.font, false));
+                }
+            }
             currentStepIndex = 0;
             ShowOnlyCurrentPanel();
+            StartMainMenuBgm();
 
             if (fadeOverlay != null)
             {
@@ -125,6 +148,7 @@ namespace FruitCatch.Preparation
             currentStepIndex = 0;
             signalHoldTime = 0f;
             ShowOnlyCurrentPanel();
+            StartMainMenuBgm();
 
             if (countdownText != null)
                 countdownText.text = string.Empty;
@@ -173,6 +197,7 @@ namespace FruitCatch.Preparation
             }
 
             signalHoldTime += Time.deltaTime;
+            UpdateStepCountdown(step);
             if (signalHoldTime >= step.RequiredHoldSeconds)
                 StartCoroutine(AdvanceRoutine());
         }
@@ -201,6 +226,16 @@ namespace FruitCatch.Preparation
 
             signalHoldTime = 0f;
 
+            if (CurrentRequiredSignal == PreparationSignal.FaceAligned && CurrentPanel != null)
+            {
+                PreparationFacePresentation presentation = CurrentPanel.GetComponentInChildren<PreparationFacePresentation>();
+                if (presentation != null)
+                {
+                    transitioning = true;
+                    yield return presentation.PlaySuccess();
+                }
+            }
+
             if (currentStepIndex >= steps.Count - 1)
             {
                 yield return CountdownAndLoadRoutine();
@@ -214,11 +249,20 @@ namespace FruitCatch.Preparation
         {
             transitioning = true;
 
-            yield return FadeTo(1f);
+            bool leavingMainMenu = currentStepIndex == 0 && nextIndex != 0;
+            if (leavingMainMenu)
+                yield return FadeToWithBgmOut();
+            else
+                yield return FadeTo(1f);
+
             currentStepIndex = Mathf.Clamp(nextIndex, 0, Mathf.Max(0, steps.Count - 1));
             signalHoldTime = 0f;
             ClearDetectionSignals();
             ShowOnlyCurrentPanel();
+
+            if (currentStepIndex == 0)
+                StartMainMenuBgm();
+
             yield return FadeTo(0f);
 
             transitioning = false;
@@ -228,14 +272,20 @@ namespace FruitCatch.Preparation
         {
             transitioning = true;
 
-            if (countdownText != null)
+            if (startCountdown != null)
             {
                 foreach (string label in countdownLabels)
                 {
-                    countdownText.text = label;
-                    yield return new WaitForSeconds(countdownInterval);
+                    PlayCountdownSound();
+                    float elapsed = 0f;
+                    while (elapsed < countdownInterval)
+                    {
+                        startCountdown.Show(label, elapsed / countdownInterval);
+                        yield return null;
+                        elapsed += Time.deltaTime;
+                    }
                 }
-                countdownText.text = string.Empty;
+                startCountdown.Hide();
             }
 
             yield return FadeTo(1f);
@@ -267,6 +317,16 @@ namespace FruitCatch.Preparation
             fadeOverlay.blocksRaycasts = target > 0.001f;
         }
 
+        private IEnumerator FadeToWithBgmOut()
+        {
+            FruitCatchAudioManager.Instance.FadeOutMusic(fadeDuration);
+            yield return FadeTo(1f);
+        }
+
+        private void StartMainMenuBgm() => FruitCatchAudioManager.Instance.PlayMainMenuBgm();
+
+        private void PlayCountdownSound() => FruitCatchAudioManager.Instance.PlayCountdown();
+
         private void ShowOnlyCurrentPanel()
         {
             for (int i = 0; i < steps.Count; i++)
@@ -274,6 +334,19 @@ namespace FruitCatch.Preparation
                 if (steps[i].Panel != null)
                     steps[i].Panel.SetActive(i == currentStepIndex);
             }
+
+            if (currentStepIndex < steps.Count)
+                UpdateStepCountdown(steps[currentStepIndex]);
+        }
+
+        private void UpdateStepCountdown(PreparationStep step)
+        {
+            if (!stepCountdowns.TryGetValue(step, out PreparationCountdown dial))
+                return;
+
+            float remaining = step.RequiredHoldSeconds - signalHoldTime;
+            int seconds = Mathf.Max(1, Mathf.CeilToInt(remaining));
+            dial.Show(seconds.ToString(), seconds - remaining);
         }
 
         private void ClearDetectionSignals()

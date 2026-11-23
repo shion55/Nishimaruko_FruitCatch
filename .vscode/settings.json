@@ -67,6 +67,6 @@
         "*.sln": "*.csproj",
         "*.slnx": "*.csproj"
     },
-    "dotnet.defaultSolution": "Nishimaruko_FruitCatch.slnx",
+    "dotnet.defaultSolution": "FruitCatch.slnx",
     "dotnet.enableWorkspaceBasedDevelopment": false
 }
