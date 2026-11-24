@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
 
 namespace FruitCatch.Preparation
 {
@@ -23,8 +22,6 @@ namespace FruitCatch.Preparation
         private float quietSeconds;
         private float displayedVolume;
         private Image levelFill;
-        private TMP_Text statusText;
-        private TMP_Text deviceText;
         private const string MicrophonePreferenceKey = "FruitCatch.SelectedMicrophone";
 
         public bool IsVoiceDetected => detected;
@@ -76,7 +73,7 @@ namespace FruitCatch.Preparation
             float gain = available ? microphone.Gain : 0f;
             UpdateDetection(gain, available, Time.unscaledDeltaTime);
             flow.ReportVoiceDetected(detected);
-            UpdateFeedback(gain, available);
+            UpdateFeedback(gain);
         }
 
         private void UpdateDetection(float gain, bool available, float deltaTime)
@@ -100,7 +97,7 @@ namespace FruitCatch.Preparation
             }
         }
 
-        private void UpdateFeedback(float gain, bool available)
+        private void UpdateFeedback(float gain)
         {
             float volume = Mathf.Clamp01(gain / Mathf.Max(0.001f, gainThreshold * 4f));
             displayedVolume = Mathf.Lerp(displayedVolume, volume, 1f - Mathf.Exp(-Time.unscaledDeltaTime * 15f));
@@ -113,23 +110,12 @@ namespace FruitCatch.Preparation
             if (levelFill == null) return;
             levelFill.rectTransform.anchorMax = new Vector2(displayedVolume, 1f);
             levelFill.color = detected ? new Color(0.1f, 0.75f, 0.35f) : new Color(0.1f, 0.65f, 0.9f);
-            statusText.text = !available ? "マイクがみつからないよ。せつぞくをかくにんしてね" :
-                detected ? $"そのまま！ {Mathf.RoundToInt(flow.CurrentSignalProgress * 100f)}%" :
-                "マイクにむかって こえをだしてね";
-            string device = microphone != null ? microphone.ActiveDeviceName : "";
-            deviceText.text = "マイク: " + (string.IsNullOrEmpty(device) ? "システムのきてい" : device) + " （クリックでへんこう）";
         }
 
         private void BuildFeedback()
         {
             Transform panel = eaterImage.transform.parent;
-            TMP_Text reference = panel.GetComponentInChildren<TMP_Text>(true);
-            RectTransform feedback = CreateRect("VoiceFeedback", panel, new Vector2(0.04f, 0.02f), new Vector2(0.45f, 0.145f));
-            Image background = feedback.gameObject.AddComponent<Image>();
-            background.color = new Color(1f, 1f, 1f, 0.95f);
-            background.raycastTarget = false;
-            statusText = CreateText("VoiceStatus", feedback, reference, new Vector2(0.02f, 0.55f), new Vector2(0.98f, 1f));
-            Image track = CreateRect("VoiceLevel", feedback, new Vector2(0.05f, 0.36f), new Vector2(0.95f, 0.48f))
+            Image track = CreateRect("VoiceLevel", panel, new Vector2(0.06f, 0.06f), new Vector2(0.43f, 0.085f))
                 .gameObject.AddComponent<Image>();
             track.color = new Color(0.85f, 0.9f, 0.92f);
             track.raycastTarget = false;
@@ -140,35 +126,7 @@ namespace FruitCatch.Preparation
             marker.rectTransform.sizeDelta = new Vector2(3f, 0f);
             marker.color = new Color(0.15f, 0.25f, 0.3f);
             marker.raycastTarget = false;
-            RectTransform selector = CreateRect("MicrophoneSelector", feedback, Vector2.zero, new Vector2(1f, 0.3f));
-            Image target = selector.gameObject.AddComponent<Image>();
-            target.color = new Color(0.88f, 0.95f, 1f);
-            Button button = selector.gameObject.AddComponent<Button>();
-            button.targetGraphic = target;
-            button.onClick.AddListener(SelectNextMicrophone);
-            deviceText = CreateText("Device", selector, reference, Vector2.zero, Vector2.one);
-            deviceText.fontSizeMax = 22f;
-            UpdateFeedback(0f, microphone != null && microphone.IsCapturing);
-        }
-
-        private void SelectNextMicrophone()
-        {
-            if (microphone == null) return;
-            string[] devices = Microphone.devices;
-            if (devices.Length == 0)
-            {
-                microphone.SelectMicrophone("");
-                return;
-            }
-            int current = System.Array.IndexOf(devices, microphone.ActiveDeviceName);
-            string next = devices[(current + 1) % devices.Length];
-            if (microphone.SelectMicrophone(next))
-            {
-                PlayerPrefs.SetString(MicrophonePreferenceKey, next);
-                PlayerPrefs.Save();
-                UpdateDetection(0f, false, 0f);
-                flow.ReportVoiceDetected(false);
-            }
+            UpdateFeedback(0f);
         }
 
         private static RectTransform CreateRect(string name, Transform parent, Vector2 min, Vector2 max)
@@ -179,20 +137,6 @@ namespace FruitCatch.Preparation
             rect.anchorMax = max;
             rect.sizeDelta = Vector2.zero;
             return rect;
-        }
-
-        private static TMP_Text CreateText(string name, Transform parent, TMP_Text reference, Vector2 min, Vector2 max)
-        {
-            var text = CreateRect(name, parent, min, max).gameObject.AddComponent<TextMeshProUGUI>();
-            text.font = reference != null ? reference.font : TMP_Settings.defaultFontAsset;
-            text.fontSize = 28f;
-            text.enableAutoSizing = true;
-            text.fontSizeMin = 14f;
-            text.fontSizeMax = 28f;
-            text.color = new Color(0.06f, 0.12f, 0.18f);
-            text.alignment = TextAlignmentOptions.Center;
-            text.raycastTarget = false;
-            return text;
         }
 
         private void OnDisable()

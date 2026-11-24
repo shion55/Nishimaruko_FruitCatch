@@ -15,6 +15,7 @@ namespace FruitCatch.Preparation
         [SerializeField] private Color borderColor = new Color(0.95f, 0.48f, 0.12f, 1f);
         [SerializeField, Min(0f)] private float cornerRadius = 32f;
         [SerializeField, Min(0f)] private float borderThickness = 7f;
+        [SerializeField, Min(0f)] private float bottomBorderExtra;
         [SerializeField, Min(1f)] private float dashLength = 22f;
         [SerializeField, Min(0f)] private float gapLength = 14f;
         [SerializeField, Range(2f, 12f)] private float curveStep = 5f;
@@ -23,6 +24,7 @@ namespace FruitCatch.Preparation
         public Color BorderColor { get => borderColor; set { borderColor = value; SetVerticesDirty(); } }
         public float CornerRadius { get => cornerRadius; set { cornerRadius = Mathf.Max(0f, value); SetVerticesDirty(); } }
         public float BorderThickness { get => borderThickness; set { borderThickness = Mathf.Max(0f, value); SetVerticesDirty(); } }
+        public float BottomBorderExtra { get => bottomBorderExtra; set { bottomBorderExtra = Mathf.Max(0f, value); SetVerticesDirty(); } }
         public float DashLength { get => dashLength; set { dashLength = Mathf.Max(1f, value); SetVerticesDirty(); } }
         public float GapLength { get => gapLength; set { gapLength = Mathf.Max(0f, value); SetVerticesDirty(); } }
 
@@ -42,20 +44,35 @@ namespace FruitCatch.Preparation
             if (rect.width <= 0f || rect.height <= 0f || perimeterLength <= 0f)
                 return;
 
-            AddFill(vertexHelper, rect, radius, perimeterLength);
+            if (gapLength <= 0f && borderThickness > 0f && borderColor.a > 0f)
+            {
+                AddFill(vertexHelper, rect, radius, perimeterLength, borderColor);
+                Rect inset = Rect.MinMaxRect(rect.xMin + borderThickness,
+                    rect.yMin + borderThickness + bottomBorderExtra,
+                    rect.xMax - borderThickness, rect.yMax - borderThickness);
+                if (inset.width > 0f && inset.height > 0f)
+                {
+                    float innerRadius = Mathf.Min(Mathf.Max(0f, radius - borderThickness),
+                        Mathf.Min(inset.width, inset.height) * 0.5f);
+                    AddFill(vertexHelper, inset, innerRadius, GetPerimeterLength(inset, innerRadius), fillColor);
+                }
+                return;
+            }
+
+            AddFill(vertexHelper, rect, radius, perimeterLength, fillColor);
             AddDashedBorder(vertexHelper, rect, radius, perimeterLength);
         }
 
-        private void AddFill(VertexHelper vertexHelper, Rect rect, float radius, float perimeterLength)
+        private void AddFill(VertexHelper vertexHelper, Rect rect, float radius, float perimeterLength, Color tint)
         {
             int centerIndex = vertexHelper.currentVertCount;
-            vertexHelper.AddVert(rect.center, fillColor, Vector2.zero);
+            vertexHelper.AddVert(rect.center, tint, Vector2.zero);
 
             int pointCount = Mathf.Max(12, Mathf.CeilToInt(perimeterLength / Mathf.Max(2f, curveStep)));
             for (int i = 0; i < pointCount; i++)
             {
                 float distance = perimeterLength * i / pointCount;
-                vertexHelper.AddVert(GetPointAtDistance(rect, radius, distance), fillColor, Vector2.zero);
+                vertexHelper.AddVert(GetPointAtDistance(rect, radius, distance), tint, Vector2.zero);
             }
 
             for (int i = 0; i < pointCount; i++)

@@ -204,7 +204,7 @@ public static class PreparationSceneBuilder
         CreateText(panel.transform, "FacePrompt", "わくのなかに\nひとりだけ うつってね", font, 46f,
             TextAlignmentOptions.Center, new Vector2(0.06f, 0.7f), new Vector2(0.48f, 0.86f));
         CreateText(panel.transform, "CarrierExplanation",
-            "<size=64><b><color=#F28426>トコミン</color></b></size>\n\n顔を横にうごかして\nパクッチョを はこんであげよう",
+            "顔を横にうごかして\nパクッチョを はこんであげよう",
             font, 44f, TextAlignmentOptions.Center,
             new Vector2(0.5f, 0.12f), new Vector2(0.93f, 0.49f));
         return panel;
@@ -215,7 +215,7 @@ public static class PreparationSceneBuilder
         GameObject panel = CreatePanel(parent, "04_VoiceAndEater", true);
         CreateSprite(panel.transform, "EaterImage", eater, new Vector2(0.08f, 0.25f), new Vector2(0.43f, 0.78f));
         CreateText(panel.transform, "EaterExplanation",
-            "<size=64><b><color=#F28426>パクッチョ</color></b></size>\n\nこえをだすと口をひらいて\nくだものをたべられるよ\n\nこえの高さをかえると\nなにかがかわるかも！",
+            "こえをだすと口をひらいて\nくだものをたべられるよ\n\nこえの高さをかえると\nなにかがかわるかも！",
             font, 44f, TextAlignmentOptions.Center,
             new Vector2(0.43f, 0.13f), new Vector2(0.94f, 0.72f));
         return panel;

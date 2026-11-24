@@ -2306,6 +2306,7 @@ MonoBehaviour:
   borderColor: {r: 0.9490196, g: 0.5176471, b: 0.14901961, a: 1}
   cornerRadius: 38
   borderThickness: 8
+  bottomBorderExtra: 0
   dashLength: 26
   gapLength: 15
   curveStep: 5

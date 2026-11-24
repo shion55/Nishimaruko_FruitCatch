@@ -6,12 +6,16 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 public static class PreparationRoleCardInstaller
 {
     private const string ScenePath = "Assets/Scenes/Preparation.unity";
-    private static readonly Color CardFill = new Color32(221, 244, 255, 248);
     private static readonly Color Orange = new Color32(242, 132, 38, 255);
+    private static readonly Color TokominBlue = new Color32(34, 167, 216, 255);
+    private static readonly Color TokominOutline = new Color32(12, 79, 115, 255);
+    private static readonly Color PakucchoCoral = new Color32(242, 107, 94, 255);
+    private static readonly Color PakucchoOutline = new Color32(122, 48, 44, 255);
 
     [InitializeOnLoadMethod]
     private static void ApplyAfterScriptReload()
@@ -47,6 +51,8 @@ public static class PreparationRoleCardInstaller
         if (debugOverlay != null)
             debugOverlay.SetActive(false);
 
+        ConfigurePatternBackground(scene);
+
         GameObject facePanel = FindInScene(scene, "03_FaceAndCarrier");
         if (facePanel != null)
         {
@@ -54,7 +60,6 @@ public static class PreparationRoleCardInstaller
             ConfigureRoleText(
                 facePanel.transform,
                 "CarrierExplanation",
-                "<size=64><b><color=#F28426>トコミン</color></b></size>\n\n" +
                 "[顔|かお]を[横|よこ]に[動|うご]かして\nパクッチョを はこんであげよう");
             CreateActionBanner(
                 facePanel.transform,
@@ -67,6 +72,9 @@ public static class PreparationRoleCardInstaller
                 facePanel.transform,
                 "CarrierRoleCard",
                 "CarrierExplanation",
+                "トコミン",
+                TokominBlue,
+                TokominOutline,
                 new Vector2(0.51f, 0.12f),
                 new Vector2(0.93f, 0.66f));
         }
@@ -79,7 +87,6 @@ public static class PreparationRoleCardInstaller
             ConfigureRoleText(
                 voicePanel.transform,
                 "EaterExplanation",
-                "<size=64><b><color=#F28426>パクッチョ</color></b></size>\n\n" +
                 "[声|こえ]を[出|だ]すと[口|くち]をひらいて\nくだものを[食|た]べられるよ\n\n" +
                 "[声|こえ]の[高|たか]さをかえると\nなにかがかわるかも！");
 
@@ -98,6 +105,9 @@ public static class PreparationRoleCardInstaller
                 voicePanel.transform,
                 "EaterRoleCard",
                 "EaterExplanation",
+                "パクッチョ",
+                PakucchoCoral,
+                PakucchoOutline,
                 new Vector2(0.46f, 0.12f),
                 new Vector2(0.93f, 0.7f));
         }
@@ -108,6 +118,36 @@ public static class PreparationRoleCardInstaller
             EditorSceneManager.CloseScene(scene, true);
 
         Debug.Log("承認済みの役割カード・強調表示・デバッグ初期非表示を適用しました。");
+    }
+
+    private static void ConfigurePatternBackground(Scene scene)
+    {
+        GameObject canvas = FindInScene(scene, "PreparationCanvas");
+        GameObject cameraLayer = FindInScene(scene, "CameraLayer");
+        if (canvas == null || cameraLayer == null)
+            return;
+
+        GameObject root = FindInScene(scene, "PreparationPatternBackground");
+        if (root == null)
+            root = CreateRect("PreparationPatternBackground", canvas.transform, Vector2.zero, Vector2.one);
+        root.transform.SetSiblingIndex(cameraLayer.transform.GetSiblingIndex() + 1);
+
+        PreparationPatternBackground pattern = root.GetComponent<PreparationPatternBackground>();
+        if (pattern == null)
+            pattern = root.AddComponent<PreparationPatternBackground>();
+
+        SerializedObject serialized = new SerializedObject(pattern);
+        serialized.FindProperty("fruitSprite").objectReferenceValue =
+            AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Image/honbansozai/fruit1.png");
+        serialized.FindProperty("roboHoldSprite").objectReferenceValue =
+            AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Image/honbansozai/robo-hold.png");
+        serialized.FindProperty("roboWaitSprite").objectReferenceValue =
+            AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Image/honbansozai/robo-wait.png");
+        serialized.FindProperty("mochiSprite").objectReferenceValue =
+            AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Image/honbansozai/mochi-shomen.png");
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+        pattern.RefreshPreview();
+        EditorUtility.SetDirty(pattern);
     }
 
     private static void CreateActionBanner(Transform panel, string bannerName, string existingTextName,
@@ -150,6 +190,7 @@ public static class PreparationRoleCardInstaller
     }
 
     private static void CreateRoleCard(Transform panel, string cardName, string textName,
+        string titleContent, Color titleFill, Color titleOutline,
         Vector2 anchorMin, Vector2 anchorMax)
     {
         Transform textTransform = FindChildRecursive(panel, textName);
@@ -165,15 +206,67 @@ public static class PreparationRoleCardInstaller
         EnsureCanvasRenderer(card);
         if (graphic == null)
             graphic = card.AddComponent<RoundedDashedPanelGraphic>();
-        graphic.FillColor = CardFill;
-        graphic.BorderColor = Orange;
+        graphic.FillColor = Color.white;
+        graphic.BorderColor = Color.black;
         graphic.CornerRadius = 34f;
-        graphic.BorderThickness = 7f;
-        graphic.DashLength = 22f;
-        graphic.GapLength = 14f;
+        graphic.BorderThickness = 5f;
+        graphic.BottomBorderExtra = 10f;
+        graphic.GapLength = 0f;
 
         textTransform.SetParent(card.transform, false);
-        SetStretch(textTransform.GetComponent<RectTransform>(), new Vector2(0.07f, 0.07f), new Vector2(0.93f, 0.93f));
+        SetStretch(textTransform.GetComponent<RectTransform>(), new Vector2(0.08f, 0.08f), new Vector2(0.92f, 0.78f));
+        CreateRoleTitle(card.transform, textTransform.GetComponent<TMP_Text>(), titleContent, titleFill, titleOutline);
+    }
+
+    private static void CreateRoleTitle(Transform card, TMP_Text bodyText, string content,
+        Color fillColor, Color outlineColor)
+    {
+        Transform currentBadge = FindChildRecursive(card, "RoleTitleBadge");
+        GameObject badge = currentBadge != null
+            ? currentBadge.gameObject
+            : CreateRect("RoleTitleBadge", card, new Vector2(0.12f, 0.82f), new Vector2(0.88f, 1.08f));
+        SetStretch(badge.GetComponent<RectTransform>(), new Vector2(0.12f, 0.82f), new Vector2(0.88f, 1.08f));
+        EnsureCanvasRenderer(badge);
+
+        RoundedDashedPanelGraphic badgeGraphic = badge.GetComponent<RoundedDashedPanelGraphic>();
+        if (badgeGraphic == null)
+            badgeGraphic = badge.AddComponent<RoundedDashedPanelGraphic>();
+        badgeGraphic.FillColor = fillColor;
+        badgeGraphic.BorderThickness = 0f;
+        badgeGraphic.CornerRadius = 30f;
+
+        Shadow shadow = badge.GetComponent<Shadow>();
+        if (shadow == null)
+            shadow = badge.AddComponent<Shadow>();
+        shadow.effectColor = new Color(0f, 0f, 0f, 0.22f);
+        shadow.effectDistance = new Vector2(0f, -6f);
+        shadow.useGraphicAlpha = true;
+
+        Transform currentTitle = FindChildRecursive(badge.transform, "RoleTitle");
+        TMP_Text title = currentTitle != null ? currentTitle.GetComponent<TMP_Text>() : null;
+        if (title == null)
+        {
+            GameObject titleObject = CreateRect("RoleTitle", badge.transform, Vector2.zero, Vector2.one);
+            title = titleObject.AddComponent<TextMeshProUGUI>();
+        }
+
+        SetStretch(title.rectTransform, new Vector2(0.04f, 0.04f), new Vector2(0.96f, 0.96f));
+        title.text = content;
+        title.font = bodyText != null ? bodyText.font : title.font;
+        title.fontStyle = FontStyles.Bold;
+        title.enableAutoSizing = true;
+        title.fontSize = 72f;
+        title.fontSizeMin = 48f;
+        title.fontSizeMax = 72f;
+        title.alignment = TextAlignmentOptions.Center;
+        title.color = Color.white;
+        title.outlineColor = outlineColor;
+        title.outlineWidth = 0.18f;
+        title.raycastTarget = false;
+        badge.transform.SetAsLastSibling();
+        EditorUtility.SetDirty(badgeGraphic);
+        EditorUtility.SetDirty(shadow);
+        EditorUtility.SetDirty(title);
     }
 
     private static void ConfigureRoleText(Transform panel, string textName, string annotatedText)

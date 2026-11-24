@@ -15,12 +15,11 @@ namespace FruitCatch.Preparation
 
         private PreparationOvalGraphic outline;
         private PreparationOvalGraphic progressArc;
+        private RawImage liveFacePreview;
         private RectTransform portrait;
         private RawImage frozenFace;
         private Image carrier;
-        private TMP_Text status;
         private Texture2D snapshot;
-        private PreparationOvalGraphic backdrop;
         private PreparationOvalGraphic flash;
         private PreparationOvalGraphic halo;
         private readonly RectTransform[] sparkles = new RectTransform[12];
@@ -35,15 +34,12 @@ namespace FruitCatch.Preparation
             TMP_Text label = GetComponentInChildren<TMP_Text>(true);
             if (label != null) label.gameObject.SetActive(false);
             if (readingBackdrop != null)
-            {
-                backdrop = CreateRect("OvalCameraCutout", readingBackdrop.transform)
-                    .gameObject.AddComponent<PreparationOvalGraphic>();
-                backdrop.color = readingBackdrop.color;
-                backdrop.cutout = (RectTransform)transform;
-                backdrop.rectangular = true;
-                backdrop.raycastTarget = false;
                 readingBackdrop.enabled = false;
-            }
+
+            liveFacePreview = CreateRect("FaceCameraPreview", transform).gameObject.AddComponent<RawImage>();
+            liveFacePreview.raycastTarget = false;
+            liveFacePreview.color = Color.white;
+            liveFacePreview.transform.SetAsFirstSibling();
 
             portrait = CreateRect("FaceTransformation", transform);
             PreparationOvalGraphic maskGraphic = portrait.gameObject.AddComponent<PreparationOvalGraphic>();
@@ -97,25 +93,19 @@ namespace FruitCatch.Preparation
             progressArc.thickness = 6f;
             progressArc.rectangular = true;
             progressArc.raycastTarget = false;
-
-            RectTransform statusRect = CreateRect("FaceRegistrationStatus", transform);
-            statusRect.anchorMin = new Vector2(-0.25f, -0.19f);
-            statusRect.anchorMax = new Vector2(1.25f, -0.03f);
-            Image background = statusRect.gameObject.AddComponent<Image>();
-            background.color = new Color(1f, 1f, 1f, 0.94f);
-            background.raycastTarget = false;
-            status = CreateRect("Text", statusRect).gameObject.AddComponent<TextMeshProUGUI>();
-            status.font = label != null ? label.font : TMP_Settings.defaultFontAsset;
-            status.fontSize = 30f;
-            status.enableAutoSizing = true;
-            status.fontSizeMin = 18f;
-            status.fontSizeMax = 30f;
-            status.color = new Color(0.06f, 0.12f, 0.18f);
-            status.alignment = TextAlignmentOptions.Center;
-            status.raycastTarget = false;
         }
 
         private void OnEnable() => ResetPresentation();
+
+        private void LateUpdate()
+        {
+            if (playing || liveFacePreview == null || cameraImage == null)
+                return;
+
+            liveFacePreview.texture = cameraImage.texture;
+            liveFacePreview.uvRect = GetGuideUv();
+            liveFacePreview.enabled = cameraImage.enabled && cameraImage.texture != null;
+        }
 
         public void ResetPresentation()
         {
@@ -123,6 +113,7 @@ namespace FruitCatch.Preparation
             if (Application.isPlaying)
                 FruitCatchAudioManager.Instance.StopTransformation();
             if (portrait == null) return;
+            liveFacePreview.enabled = cameraImage != null && cameraImage.enabled && cameraImage.texture != null;
             portrait.localScale = Vector3.one;
             portrait.localRotation = Quaternion.identity;
             portrait.gameObject.SetActive(false);
@@ -133,12 +124,6 @@ namespace FruitCatch.Preparation
             flash.gameObject.SetActive(false);
             halo.gameObject.SetActive(false);
             foreach (RectTransform sparkle in sparkles) sparkle.gameObject.SetActive(false);
-            if (backdrop != null)
-            {
-                backdrop.solidRectangle = false;
-                backdrop.color = readingBackdrop.color;
-                backdrop.SetVerticesDirty();
-            }
             outline.gameObject.SetActive(true);
             progressArc.gameObject.SetActive(true);
             ReleaseSnapshot();
@@ -163,24 +148,11 @@ namespace FruitCatch.Preparation
 
         public void SetStatus(string hint, float progress)
         {
-            if (playing || status == null) return;
+            if (playing || progressArc == null) return;
             bool holding = hint == "HOLD" || hint == "DONE";
             progressArc.progress = holding ? progress : 1f;
             progressArc.color = holding ? new Color(0.15f, 0.95f, 0.45f) : new Color(0.25f, 0.85f, 1f);
             progressArc.SetVerticesDirty();
-            switch (hint)
-            {
-                case "HOLD": status.text = $"ひとりだけ そのまま！ {Mathf.RoundToInt(progress * 100f)}%"; break;
-                case "DONE": status.text = "とうろくできたよ！"; break;
-                case "NO_FACE": status.text = "わくのなかに ひとりだけ うつってね"; break;
-                case "MULTIPLE_FACES": status.text = "わくのなかは ひとりだけにしてね"; break;
-                case "MOVE_CLOSER": status.text = "もうすこし ちかづいてね"; break;
-                case "MOVE_BACK": status.text = "すこし はなれてね"; break;
-                case "MOVE_CENTER": status.text = "わくのなかに かおをうつしてね"; break;
-                case "REGISTER_FAILED": status.text = "あかるいところで まえをむいてね"; break;
-                case "OFFLINE": status.text = "カメラとのせつぞくを かくにんしてね"; break;
-                default: status.text = "わくのなかに ひとりだけ うつってね"; break;
-            }
         }
 
         public void Capture(Texture2D frame)
@@ -200,18 +172,8 @@ namespace FruitCatch.Preparation
         public IEnumerator PlaySuccess()
         {
             playing = true;
-            status.text = "トコミンに へんしん！";
+            liveFacePreview.enabled = false;
             PlayTransformationSound();
-            // Close the camera cutout *before* fading the frozen portrait.
-            // Camera transform/UVs/stream stay untouched behind this panel.
-            if (backdrop != null)
-            {
-                backdrop.solidRectangle = true;
-                Color opaque = readingBackdrop.color;
-                opaque.a = 1f;
-                backdrop.color = opaque;
-                backdrop.SetVerticesDirty();
-            }
             portrait.gameObject.SetActive(snapshot != null);
             carrier.gameObject.SetActive(true);
             outline.gameObject.SetActive(false);
@@ -267,7 +229,6 @@ namespace FruitCatch.Preparation
             flash.gameObject.SetActive(false);
             halo.gameObject.SetActive(false);
             foreach (RectTransform sparkle in sparkles) sparkle.gameObject.SetActive(false);
-            status.text = "かおをうごかして はこんでね！";
             if (!completionSoundPlayed)
                 PlayTransformationCompleteSound();
             yield return new WaitForSecondsRealtime(carrierHoldSeconds);
