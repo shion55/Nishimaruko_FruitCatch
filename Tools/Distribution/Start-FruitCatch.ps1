@@ -5,7 +5,12 @@ $trackingRoot = Join-Path $PSScriptRoot 'Tracking'
 $pythonPath = Join-Path $trackingRoot '.venv\Scripts\python.exe'
 $trackerPath = Join-Path $trackingRoot 'face_tracker_registered.py'
 
-if (-not (Test-Path -LiteralPath $pythonPath)) {
+$needsSetup = -not (Test-Path -LiteralPath $pythonPath)
+if (-not $needsSetup) {
+    & $pythonPath -c "import cv2, cv2_enumerate_cameras, mediapipe, numpy; assert hasattr(cv2, 'FaceRecognizerSF')" 2>$null
+    $needsSetup = $LASTEXITCODE -ne 0
+}
+if ($needsSetup) {
     & (Join-Path $PSScriptRoot 'Setup-FruitCatch.ps1')
 }
 if (-not (Test-Path -LiteralPath $gamePath)) {
@@ -18,7 +23,8 @@ try {
         -WorkingDirectory $trackingRoot -WindowStyle Hidden -PassThru
 
     $ready = $false
-    for ($attempt = 0; $attempt -lt 40; $attempt++) {
+    # 初回はカメラの最大解像度確認に時間がかかる場合がある。
+    for ($attempt = 0; $attempt -lt 120; $attempt++) {
         if ($tracker.HasExited) { throw 'カメラ判定プログラムが途中で終了しました。' }
         try {
             Invoke-WebRequest -Uri 'http://127.0.0.1:8765/frame.jpg' -TimeoutSec 1 -UseBasicParsing | Out-Null

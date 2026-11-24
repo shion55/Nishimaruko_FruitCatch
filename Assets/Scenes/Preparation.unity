@@ -1307,7 +1307,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "Carrier\n\n\u9854\u3092\u6A2A\u306B\u52D5\u304B\u3057\u3066\nEater\u3092\u306F\u3053\u3093\u3067\u3042\u3052\u3088\u3046"
+  m_text: "<size=64><b><color=#F28426>\u30C8\u30B3\u30DF\u30F3</color></b></size>\n\n[\u9854|\u304B\u304A]\u3092[\u6A2A|\u3088\u3053]\u306B[\u52D5|\u3046\u3054]\u304B\u3057\u3066\n\u30D1\u30AF\u30C3\u30C1\u30E7\u3092 \u306F\u3053\u3093\u3067\u3042\u3052\u3088\u3046"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 349213307ef7d2e4784e24fc50617ccf, type: 2}
   m_sharedMaterial: {fileID: -3528156290726529903, guid: 349213307ef7d2e4784e24fc50617ccf, type: 2}
@@ -1334,12 +1334,12 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 38
-  m_fontSizeBase: 38
+  m_fontSize: 44
+  m_fontSizeBase: 44
   m_fontWeight: 400
-  m_enableAutoSizing: 1
-  m_fontSizeMin: 20.9
-  m_fontSizeMax: 38
+  m_enableAutoSizing: 0
+  m_fontSizeMin: 44
+  m_fontSizeMax: 44
   m_fontStyle: 0
   m_HorizontalAlignment: 2
   m_VerticalAlignment: 512
@@ -1399,7 +1399,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 57155b523cd632d4d97d297a92ec9702, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.FuriganaText
-  annotatedText: "Carrier\n\n[\u9854|\u304B\u304A]\u3092[\u6A2A|\u3088\u3053]\u306B[\u52D5|\u3046\u3054]\u304B\u3057\u3066\nEater\u3092\u306F\u3053\u3093\u3067\u3042\u3052\u3088\u3046"
+  annotatedText: "<size=64><b><color=#F28426>\u30C8\u30B3\u30DF\u30F3</color></b></size>\n\n[\u9854|\u304B\u304A]\u3092[\u6A2A|\u3088\u3053]\u306B[\u52D5|\u3046\u3054]\u304B\u3057\u3066\n\u30D1\u30AF\u30C3\u30C1\u30E7\u3092 \u306F\u3053\u3093\u3067\u3042\u3052\u3088\u3046"
   rubyFontScale: 0.5
   verticalOffset: -2
   rubyColor: {r: 0.08, g: 0.1, b: 0.12, a: 1}
@@ -3808,7 +3808,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "Eater\n\n\u3053\u3048\u3092\u3060\u3059\u3068\u53E3\u3092\u3072\u3089\u3044\u3066\n\u304F\u3060\u3082\u306E\u3092\u305F\u3079\u3089\u308C\u308B\u3088\n\n\u3053\u3048\u306E\u9AD8\u3055\u3092\u304B\u3048\u308B\u3068\n\u306A\u306B\u304B\u304C\u304B\u308F\u308B\u304B\u3082\uFF01"
+  m_text: "<size=64><b><color=#F28426>\u30D1\u30AF\u30C3\u30C1\u30E7</color></b></size>\n\n[\u58F0|\u3053\u3048]\u3092[\u51FA|\u3060]\u3059\u3068[\u53E3|\u304F\u3061]\u3092\u3072\u3089\u3044\u3066\n\u304F\u3060\u3082\u306E\u3092[\u98DF|\u305F]\u3079\u3089\u308C\u308B\u3088\n\n[\u58F0|\u3053\u3048]\u306E[\u9AD8|\u305F\u304B]\u3055\u3092\u304B\u3048\u308B\u3068\n\u306A\u306B\u304B\u304C\u304B\u308F\u308B\u304B\u3082\uFF01"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 349213307ef7d2e4784e24fc50617ccf, type: 2}
   m_sharedMaterial: {fileID: -3528156290726529903, guid: 349213307ef7d2e4784e24fc50617ccf, type: 2}
@@ -3835,12 +3835,12 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 37
-  m_fontSizeBase: 37
+  m_fontSize: 44
+  m_fontSizeBase: 44
   m_fontWeight: 400
-  m_enableAutoSizing: 1
-  m_fontSizeMin: 20.35
-  m_fontSizeMax: 37
+  m_enableAutoSizing: 0
+  m_fontSizeMin: 44
+  m_fontSizeMax: 44
   m_fontStyle: 0
   m_HorizontalAlignment: 2
   m_VerticalAlignment: 512
@@ -3900,7 +3900,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 57155b523cd632d4d97d297a92ec9702, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FruitCatch.Preparation.FuriganaText
-  annotatedText: "Eater\n\n[\u58F0|\u3053\u3048]\u3092[\u51FA|\u3060]\u3059\u3068[\u53E3|\u304F\u3061]\u3092\u3072\u3089\u3044\u3066\n\u304F\u3060\u3082\u306E\u3092[\u98DF|\u305F]\u3079\u3089\u308C\u308B\u3088\n\n[\u58F0|\u3053\u3048]\u306E[\u9AD8|\u305F\u304B]\u3055\u3092\u304B\u3048\u308B\u3068\n\u306A\u306B\u304B\u304C\u304B\u308F\u308B\u304B\u3082\uFF01"
+  annotatedText: "<size=64><b><color=#F28426>\u30D1\u30AF\u30C3\u30C1\u30E7</color></b></size>\n\n[\u58F0|\u3053\u3048]\u3092[\u51FA|\u3060]\u3059\u3068[\u53E3|\u304F\u3061]\u3092\u3072\u3089\u3044\u3066\n\u304F\u3060\u3082\u306E\u3092[\u98DF|\u305F]\u3079\u3089\u308C\u308B\u3088\n\n[\u58F0|\u3053\u3048]\u306E[\u9AD8|\u305F\u304B]\u3055\u3092\u304B\u3048\u308B\u3068\n\u306A\u306B\u304B\u304C\u304B\u308F\u308B\u304B\u3082\uFF01"
   rubyFontScale: 0.5
   verticalOffset: -2
   rubyColor: {r: 0.08, g: 0.1, b: 0.12, a: 1}
@@ -3948,12 +3948,12 @@ MonoBehaviour:
     requiredSignal: 4
     requiredHoldSeconds: 7
     showCountdown: 1
-  - displayName: "\u9854\u30FBCarrier"
+  - displayName: "\u9854\u30FB\u30C8\u30B3\u30DF\u30F3"
     panel: {fileID: 930587012}
     requiredSignal: 2
     requiredHoldSeconds: 0.1
     showCountdown: 0
-  - displayName: "\u58F0\u30FBEater"
+  - displayName: "\u58F0\u30FB\u30D1\u30AF\u30C3\u30C1\u30E7"
     panel: {fileID: 1327171180}
     requiredSignal: 3
     requiredHoldSeconds: 1

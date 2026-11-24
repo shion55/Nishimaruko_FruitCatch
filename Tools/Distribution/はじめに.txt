@@ -9,5 +9,11 @@ PythonがないPCではPython 3.12も自動で準備します。
 カメラとマイクを接続し、「Start FruitCatch.bat」をダブルクリックしてください。
 カメラ判定が準備できるとゲームが自動で開きます。
 
+【使用するカメラを型番で指定する】
+Trackingフォルダーの「camera_config.json」をメモ帳で開き、camera_nameに型番を入力してください。
+例: "camera_name": "Logitech BRIO"
+空欄の場合はcamera_index（初期値0）のカメラを使用します。
+use_max_resolutionがtrueの場合、使用できる最大解像度を起動時に選びます。
+
 【開発・確認】
 カメラ判定が使えない場合も、Preparation画面ではSpaceキーで次へ進めます。

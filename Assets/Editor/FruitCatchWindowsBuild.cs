@@ -50,6 +50,7 @@ public static class FruitCatchWindowsBuild
         Directory.CreateDirectory(Path.Combine(tracking, "face_models"));
         CopyFile("Tools/face_tracker_registered.py", Path.Combine(tracking, "face_tracker_registered.py"));
         CopyFile("Tools/requirements.txt", Path.Combine(tracking, "requirements.txt"));
+        CopyFile("Tools/camera_config.json", Path.Combine(tracking, "camera_config.json"));
         foreach (string model in Directory.GetFiles("Tools/face_models"))
             CopyFile(model, Path.Combine(tracking, "face_models", Path.GetFileName(model)));
     }

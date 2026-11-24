@@ -90,8 +90,8 @@ public static class PreparationMenuAnimationInstaller
             if (explanation != null && explanation.TryGetComponent(out TMP_Text text))
             {
                 text.text =
-                    "マイクにむかって、こえをだしてね\n\n" +
-                    "Eater\nこえをだすと口をひらいて\nくだものをたべられるよ\n\n" +
+                    "<size=64><b><color=#F28426>パクッチョ</color></b></size>\n\n" +
+                    "こえをだすと口をひらいて\nくだものをたべられるよ\n\n" +
                     "こえの高さをかえると\nなにかがかわるかも！";
                 EditorUtility.SetDirty(text);
             }

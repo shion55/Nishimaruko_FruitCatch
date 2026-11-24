@@ -51,6 +51,11 @@ public static class PreparationRoleCardInstaller
         if (facePanel != null)
         {
             RemoveChild(facePanel.transform, "CarrierImage");
+            ConfigureRoleText(
+                facePanel.transform,
+                "CarrierExplanation",
+                "<size=64><b><color=#F28426>トコミン</color></b></size>\n\n" +
+                "[顔|かお]を[横|よこ]に[動|うご]かして\nパクッチョを はこんであげよう");
             CreateActionBanner(
                 facePanel.transform,
                 "FaceActionBanner",
@@ -71,15 +76,12 @@ public static class PreparationRoleCardInstaller
         {
             RemoveChild(voicePanel.transform, "MicrophoneDirection");
 
-            Transform explanation = FindChildRecursive(voicePanel.transform, "EaterExplanation");
-            if (explanation != null && explanation.TryGetComponent(out TMP_Text roleText))
-            {
-                roleText.text =
-                    "Eater\n\n" +
-                    "こえをだすと口をひらいて\nくだものをたべられるよ\n\n" +
-                    "こえの高さをかえると\nなにかがかわるかも！";
-                EditorUtility.SetDirty(roleText);
-            }
+            ConfigureRoleText(
+                voicePanel.transform,
+                "EaterExplanation",
+                "<size=64><b><color=#F28426>パクッチョ</color></b></size>\n\n" +
+                "[声|こえ]を[出|だ]すと[口|くち]をひらいて\nくだものを[食|た]べられるよ\n\n" +
+                "[声|こえ]の[高|たか]さをかえると\nなにかがかわるかも！");
 
             Transform existingAction = FindChildRecursive(voicePanel.transform, "VoiceActionPrompt");
             TMP_Text actionText = existingAction != null
@@ -172,6 +174,25 @@ public static class PreparationRoleCardInstaller
 
         textTransform.SetParent(card.transform, false);
         SetStretch(textTransform.GetComponent<RectTransform>(), new Vector2(0.07f, 0.07f), new Vector2(0.93f, 0.93f));
+    }
+
+    private static void ConfigureRoleText(Transform panel, string textName, string annotatedText)
+    {
+        Transform textTransform = FindChildRecursive(panel, textName);
+        if (textTransform == null || !textTransform.TryGetComponent(out TMP_Text roleText))
+            return;
+
+        roleText.richText = true;
+        roleText.enableAutoSizing = false;
+        roleText.fontSize = 44f;
+        roleText.text = annotatedText;
+        EditorUtility.SetDirty(roleText);
+
+        if (textTransform.TryGetComponent(out FuriganaText furigana))
+        {
+            furigana.SetAnnotatedText(annotatedText);
+            EditorUtility.SetDirty(furigana);
+        }
     }
 
     private static TMP_Text CreateText(Transform parent, string name, string content)

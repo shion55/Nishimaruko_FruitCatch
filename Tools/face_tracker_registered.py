@@ -20,6 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import json
 import socket
 import math
 import threading
@@ -31,7 +32,7 @@ import mediapipe as mp
 import numpy as np
 
 # ====== カメラ・通信 ======
-CAMERA_INDEX = 0
+CAMERA_CONFIG_PATH = Path(__file__).resolve().parent / "camera_config.json"
 UNITY_IP = "127.0.0.1"
 UNITY_POSITION_PORT = 5015
 PYTHON_COMMAND_PORT = 5006
@@ -39,14 +40,38 @@ UNITY_STATUS_PORT = 5007
 PREVIEW_HOST = "127.0.0.1"
 PREVIEW_PORT = 8765
 
-FRAME_WIDTH = 640
-FRAME_HEIGHT = 480
 MIRROR_IMAGE = True
 MAX_DETECTED_FACES = 4
 MIN_FACE_SIZE_PX = 60
+ANALYSIS_MAX_WIDTH = 1280
+PREVIEW_MAX_WIDTH = 1920
+REQUESTED_CAMERA_FPS = 30
 PREVIEW_FPS = 15  # Unity側は約12〜15fpsのプレビュー（ゲーム中のトラッキングは毎フレーム）
 JPEG_QUALITY = 73
 SHOW_DEBUG_WINDOW = False  # デバッグが必要な場合のみTrueにする
+
+# DirectShowで一般的な高解像度モード。上から試し、実際に取得できた最大サイズを使う。
+RESOLUTION_CANDIDATES = (
+    (7680, 4320),
+    (5120, 2880),
+    (4096, 2160),
+    (3840, 2160),
+    (3264, 2448),
+    (2592, 1944),
+    (2560, 1920),
+    (2560, 1440),
+    (2048, 1536),
+    (1920, 1200),
+    (1920, 1080),
+    (1600, 1200),
+    (1440, 1080),
+    (1280, 1024),
+    (1280, 960),
+    (1280, 720),
+    (1024, 768),
+    (800, 600),
+    (640, 480),
+)
 
 # ====== 両手上げ判定 ======
 HAND_RAISE_SHOULDER_MARGIN = 0.03  # 手首が肩より画面高の3%以上上
@@ -192,6 +217,135 @@ def make_preview_handler(shared: PreviewBuffer):
             return  # 1秒に十数件のHTTPアクセスログを抑制
 
     return PreviewHandler
+
+
+def load_camera_config() -> dict:
+    config = {
+        "camera_name": "",
+        "camera_index": 0,
+        "use_max_resolution": True,
+        "width": 1920,
+        "height": 1080,
+    }
+    if not CAMERA_CONFIG_PATH.is_file():
+        print(f"カメラ設定がないため初期値を使用します: {CAMERA_CONFIG_PATH}")
+        return config
+
+    try:
+        loaded = json.loads(CAMERA_CONFIG_PATH.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"camera_config.jsonを読み込めません: {exc}") from exc
+    if not isinstance(loaded, dict):
+        raise RuntimeError("camera_config.jsonの最上位はJSONオブジェクトにしてください")
+    config.update(loaded)
+    return config
+
+
+def select_camera(config: dict) -> tuple[int, int, str]:
+    requested_name = str(config.get("camera_name") or "").strip()
+    fallback_index = int(config.get("camera_index", 0))
+    try:
+        from cv2_enumerate_cameras import enumerate_cameras
+        cameras = enumerate_cameras(cv2.CAP_DSHOW)
+    except (ImportError, NotImplementedError) as exc:
+        if requested_name:
+            raise RuntimeError(
+                "型番指定にはcv2-enumerate-camerasが必要です。Setup FruitCatch.batを再実行してください"
+            ) from exc
+        print(f"カメラ名を列挙できないため番号{fallback_index}を使用します: {exc}")
+        return fallback_index, cv2.CAP_DSHOW, f"Camera {fallback_index}"
+
+    if not cameras:
+        raise RuntimeError("Windowsに認識されているカメラがありません")
+
+    print("検出したカメラ:")
+    for camera in cameras:
+        print(f"  [{camera.index}] {camera.name}")
+
+    if requested_name:
+        key = requested_name.casefold()
+        exact = [camera for camera in cameras if camera.name.casefold() == key]
+        matches = exact or [camera for camera in cameras if key in camera.name.casefold()]
+        if not matches:
+            available = ", ".join(camera.name for camera in cameras)
+            raise RuntimeError(f"指定したカメラ '{requested_name}' が見つかりません。検出結果: {available}")
+        if len(matches) > 1:
+            print(f"同名候補が{len(matches)}台あるため、先頭のカメラを使用します")
+        selected = matches[0]
+    else:
+        selected = next((camera for camera in cameras if camera.index == fallback_index), cameras[0])
+
+    print(f"選択したカメラ: [{selected.index}] {selected.name}")
+    return selected.index, selected.backend, selected.name
+
+
+def read_camera_frame(cap, attempts: int = 3) -> np.ndarray | None:
+    frame = None
+    for _ in range(attempts):
+        ok, candidate = cap.read()
+        if ok and candidate is not None and candidate.size > 0:
+            frame = candidate
+    return frame
+
+
+def set_capture_mode(cap, width: int, height: int) -> np.ndarray | None:
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+    cap.set(cv2.CAP_PROP_FPS, REQUESTED_CAMERA_FPS)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+    return read_camera_frame(cap)
+
+
+def configure_camera(index: int, backend: int, name: str, config: dict):
+    cap = cv2.VideoCapture(index, backend)
+    if not cap.isOpened():
+        raise RuntimeError(f"カメラを開けません: {name} (index={index})")
+
+    use_max = bool(config.get("use_max_resolution", True))
+    best = None
+    if use_max:
+        for requested_width, requested_height in RESOLUTION_CANDIDATES:
+            frame = set_capture_mode(cap, requested_width, requested_height)
+            if frame is None:
+                continue
+            actual_height, actual_width = frame.shape[:2]
+            candidate = (actual_width * actual_height, actual_width, actual_height,
+                         requested_width, requested_height)
+            if best is None or candidate[:3] > best[:3]:
+                best = candidate
+            if actual_width == requested_width and actual_height == requested_height:
+                break
+    else:
+        requested_width = max(1, int(config.get("width", 1920)))
+        requested_height = max(1, int(config.get("height", 1080)))
+        frame = set_capture_mode(cap, requested_width, requested_height)
+        if frame is not None:
+            actual_height, actual_width = frame.shape[:2]
+            best = (actual_width * actual_height, actual_width, actual_height,
+                    requested_width, requested_height)
+
+    if best is None:
+        cap.release()
+        raise RuntimeError(f"カメラ映像を取得できません: {name}")
+
+    _, _, _, requested_width, requested_height = best
+    frame = set_capture_mode(cap, requested_width, requested_height)
+    if frame is None:
+        cap.release()
+        raise RuntimeError(f"選択した解像度で映像を取得できません: {name}")
+
+    actual_height, actual_width = frame.shape[:2]
+    actual_fps = cap.get(cv2.CAP_PROP_FPS)
+    print(f"撮影モード: {actual_width}x{actual_height} / {actual_fps:.1f}fps")
+    return cap
+
+
+def resize_to_max_width(frame: np.ndarray, max_width: int) -> np.ndarray:
+    if frame.shape[1] <= max_width:
+        return frame
+    scale = max_width / frame.shape[1]
+    size = (max_width, max(1, int(round(frame.shape[0] * scale))))
+    return cv2.resize(frame, size, interpolation=cv2.INTER_AREA)
 
 
 def ensure_models() -> None:
@@ -502,6 +656,9 @@ def run() -> None:
     if not hasattr(cv2, "FaceRecognizerSF"):
         raise RuntimeError("opencv-contrib-pythonが必要です（FaceRecognizerSF がありません）")
 
+    camera_config = load_camera_config()
+    camera_index, camera_backend, camera_name = select_camera(camera_config)
+
     recognizer = cv2.FaceRecognizerSF.create(str(SFACE_PATH), "")
     options = mp.tasks.vision.FaceLandmarkerOptions(
         base_options=mp.tasks.BaseOptions(model_asset_path=str(LANDMARKER_PATH)),
@@ -520,11 +677,7 @@ def run() -> None:
         min_tracking_confidence=0.5,
     )
 
-    cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_DSHOW)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
-    if not cap.isOpened():
-        raise RuntimeError("カメラを開けません。CAMERA_INDEXを確認してください")
+    cap = configure_camera(camera_index, camera_backend, camera_name, camera_config)
 
     position_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     status_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -559,21 +712,22 @@ def run() -> None:
                 if MIRROR_IMAGE:
                     frame = cv2.flip(frame, 1)
 
-                rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                analysis_frame = resize_to_max_width(frame, ANALYSIS_MAX_WIDTH)
+                rgb = cv2.cvtColor(analysis_frame, cv2.COLOR_BGR2RGB)
                 mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
                 timestamp_ms = max(int(time.monotonic() * 1000), last_timestamp_ms + 1)
                 last_timestamp_ms = timestamp_ms
                 result = detector.detect_for_video(mp_image, timestamp_ms)
                 pose_result = pose_detector.detect_for_video(mp_image, timestamp_ms)
-                faces = collect_faces(result.face_landmarks, frame.shape[1], frame.shape[0])
+                faces = collect_faces(result.face_landmarks, analysis_frame.shape[1], analysis_frame.shape[0])
                 hands_raised = has_raised_both_hands(pose_result.pose_landmarks)
 
                 selected = None
                 score = 0.0
                 if state.pending_register:
-                    selected = process_registration(state, recognizer, frame, faces, status_sock)
+                    selected = process_registration(state, recognizer, analysis_frame, faces, status_sock)
                 elif state.active:
-                    selected, score = select_registered_face(state, recognizer, frame, faces)
+                    selected, score = select_registered_face(state, recognizer, analysis_frame, faces)
                     if selected is None:
                         send_status(status_sock, state, "LOST")
                     else:
@@ -589,21 +743,22 @@ def run() -> None:
                                     state.profiles.pop(1)
 
                 if selected is not None:
-                    normalized_x = float(np.clip(faces[selected].center[0] / frame.shape[1], 0.0, 1.0))
+                    normalized_x = float(np.clip(faces[selected].center[0] / analysis_frame.shape[1], 0.0, 1.0))
                     position_sock.sendto(f"{normalized_x:.4f}".encode("utf-8"),
                                          (UNITY_IP, UNITY_POSITION_PORT))
 
                 now = time.monotonic()
                 if now - last_preview_at >= 1.0 / PREVIEW_FPS:
                     # 描画画像に検出矩形を合成しない。Unityのガイドを重ねて使う。
-                    success, encoded = cv2.imencode(".jpg", frame,
+                    preview_frame = resize_to_max_width(frame, PREVIEW_MAX_WIDTH)
+                    success, encoded = cv2.imencode(".jpg", preview_frame,
                                                     [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
                     shared.update(encoded.tobytes() if success else None,
                                   state.progress, state.hint, state.active, hands_raised, state.registration_id)
                     last_preview_at = now
 
                 if SHOW_DEBUG_WINDOW:
-                    debug = frame.copy()
+                    debug = analysis_frame.copy()
                     for index, face in enumerate(faces):
                         x, y, w, h = face.rect
                         color = (0, 220, 0) if index == selected else (120, 120, 120)

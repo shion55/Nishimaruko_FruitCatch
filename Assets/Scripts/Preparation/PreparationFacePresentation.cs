@@ -200,7 +200,7 @@ namespace FruitCatch.Preparation
         public IEnumerator PlaySuccess()
         {
             playing = true;
-            status.text = "Carrierに へんしん！";
+            status.text = "トコミンに へんしん！";
             PlayTransformationSound();
             // Close the camera cutout *before* fading the frozen portrait.
             // Camera transform/UVs/stream stay untouched behind this panel.

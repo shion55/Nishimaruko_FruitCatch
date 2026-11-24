@@ -19,7 +19,7 @@ MonoBehaviour:
   transformationSound: {fileID: 8300000, guid: cc1d5123f4a11cf4894bba10afc0f93f, type: 3}
   transformationSoundVolume: 0.8
   transformationCompleteSound: {fileID: 8300000, guid: d6d1f6e42ff9e394794a8e6c4c577a23, type: 3}
-  transformationCompleteSoundVolume: 0.863
+  transformationCompleteSoundVolume: 0.669
   startSound: {fileID: 8300000, guid: edce417d35d69f74da9d0451b9903747, type: 3}
   startSoundVolume: 1
   finishSound: {fileID: 8300000, guid: edce417d35d69f74da9d0451b9903747, type: 3}

@@ -209,9 +209,21 @@ namespace FruitCatch.Preparation
         {
             ranges = new List<RubyRange>();
             var builder = new StringBuilder();
+            int visibleCharacterCount = 0;
 
             for (int i = 0; i < source.Length; i++)
             {
+                if (source[i] == '<')
+                {
+                    int tagEnd = source.IndexOf('>', i + 1);
+                    if (tagEnd >= 0)
+                    {
+                        builder.Append(source, i, tagEnd - i + 1);
+                        i = tagEnd;
+                        continue;
+                    }
+                }
+
                 if (source[i] == '[')
                 {
                     int separator = source.IndexOf('|', i + 1);
@@ -222,17 +234,19 @@ namespace FruitCatch.Preparation
                         string reading = source.Substring(separator + 1, close - separator - 1);
                         ranges.Add(new RubyRange
                         {
-                            Start = builder.Length,
+                            Start = visibleCharacterCount,
                             Length = baseCharacters.Length,
                             Reading = reading
                         });
                         builder.Append(baseCharacters);
+                        visibleCharacterCount += baseCharacters.Length;
                         i = close;
                         continue;
                     }
                 }
 
                 builder.Append(source[i]);
+                visibleCharacterCount++;
             }
 
             displayText = builder.ToString();
