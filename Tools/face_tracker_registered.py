@@ -1,15 +1,16 @@
-"""Unityの丸型カメラプレビューから3秒静止で顔を登録し、登録者だけを追跡する。
+"""カメラに映る1人の顔位置を追跡する。本人照合・表情推定は行わない。
 
 PythonがWebカメラを1台だけ開き、Unityのプレビューと顔追跡に共用する。
 
 Unity -> Python  UDP 5006: AUTO (3秒自動登録), REGISTER (従来の即時登録), CLEAR, PING
-Python -> Unity  UDP 5015: 登録者のX座標 (従来どおり "0.5123")
+Python -> Unity  UDP 5015: 顔のX座標 (従来どおり "0.5123")
 Python -> Unity  UDP 5007: 登録・追跡状態 (REGISTERED / TRACKING / LOSTなど)
-Python -> Unity  HTTP 127.0.0.1:8765/frame.jpg: 640x480 JPEGおよび進捗ヘッダー
+Python -> Unity  HTTP 127.0.0.1:8765/frame.jpg: JPEGおよび進捗ヘッダー
 
 Unity側で円形UI Maskを使い、画像の中央だけを丸く切り抜いて表示する。
 カメラ画像を顔へ自動追従して切り抜くと位置合わせが無意味になるため、
-登録プレビューは常に固定中心で切り抜く。登録顔の特徴はメモリにだけ保存する。
+登録プレビューは常に固定中心で切り抜く。3秒の位置合わせ後に操作を有効にする。
+撮影は最新1枚だけを保持し、JPEG圧縮はHTTPスレッドで行う。
 
 依存: py -m pip install mediapipe opencv-contrib-python numpy
 初回起動に限り、公式配布モデルをダウンロードする。
@@ -17,7 +18,7 @@ Unity側で円形UI Maskを使い、画像の中央だけを丸く切り抜い�
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import json
@@ -28,7 +29,6 @@ import time
 import urllib.request
 
 import cv2
-import mediapipe as mp
 import numpy as np
 
 # ====== カメラ・通信 ======
@@ -41,12 +41,12 @@ PREVIEW_HOST = "127.0.0.1"
 PREVIEW_PORT = 8765
 
 MIRROR_IMAGE = True
-MAX_DETECTED_FACES = 4
-MIN_FACE_SIZE_PX = 60
-ANALYSIS_MAX_WIDTH = 1280
-PREVIEW_MAX_WIDTH = 1920
+MIN_FACE_SIZE_PX = 30
+ANALYSIS_MAX_WIDTH = 640
+PREVIEW_MAX_WIDTH = 1280
 REQUESTED_CAMERA_FPS = 30
-PREVIEW_FPS = 15  # Unity側は約12〜15fpsのプレビュー（ゲーム中のトラッキングは毎フレーム）
+PREVIEW_IDLE_SECONDS = 1.0  # PreparationからのHTTP取得が止まったら姿勢推定も休止。
+POSE_FPS = 10
 JPEG_QUALITY = 73
 SHOW_DEBUG_WINDOW = False  # デバッグが必要な場合のみTrueにする
 
@@ -84,23 +84,13 @@ CENTER_TOLERANCE_X = 0.12  # 元画像の中心から±12%
 CENTER_TOLERANCE_Y = 0.13
 MIN_FACE_WIDTH_RATIO = 0.21
 MAX_FACE_WIDTH_RATIO = 0.49
-HOLD_IDENTITY_THRESHOLD = 0.40  # 静止途中で人物が入れ替わっていないか
-
-# ====== 登録者照合（会場環境に合わせ調整可） ======
-MATCH_THRESHOLD = 0.42
-AMBIGUITY_MARGIN = 0.04
-ADD_PROFILE_THRESHOLD = 0.65
-MAX_FACE_PROFILES = 6
 
 MODEL_DIR = Path(__file__).resolve().parent / "face_models"
-LANDMARKER_PATH = MODEL_DIR / "face_landmarker.task"
-SFACE_PATH = MODEL_DIR / "face_recognition_sface_2021dec.onnx"
+FACE_DETECTOR_PATH = MODEL_DIR / "face_detection_yunet_2023mar.onnx"
 POSE_PATH = MODEL_DIR / "pose_landmarker_lite.task"
 MODEL_URLS = {
-    LANDMARKER_PATH:
-        "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-    SFACE_PATH:
-        "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx",
+    FACE_DETECTOR_PATH:
+        "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx",
     POSE_PATH:
         "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
 }
@@ -109,25 +99,18 @@ MODEL_URLS = {
 @dataclass
 class Face:
     rect: tuple[int, int, int, int]
-    sface_input: np.ndarray
     center: tuple[float, float]
-    descriptor: np.ndarray | None = None
 
 
 @dataclass
 class TrackingState:
-    profiles: list[np.ndarray] = field(default_factory=list)
     pending_register: bool = False
     auto_register: bool = False
     active: bool = False
     hold_start: float | None = None
-    hold_descriptor: np.ndarray | None = None
     progress: float = 0.0
     hint: str = "WAITING"
-    last_center: tuple[float, float] | None = None
-    last_seen_at: float = 0.0
     last_status: str = "IDLE"
-    frame_count: int = 0
     registration_id: str = ""
     guide_region: tuple[float, float, float, float] | None = None
     hold_elapsed: float = 0.0
@@ -136,7 +119,6 @@ class TrackingState:
 
     def reset_hold(self, hint: str) -> None:
         self.hold_start = None
-        self.hold_descriptor = None
         self.hold_elapsed = 0.0
         self.hold_last_valid = None
         self.missing_since = None
@@ -146,42 +128,104 @@ class TrackingState:
     def clear(self) -> None:
         self.registration_id = ""
         self.guide_region = None
-        self.profiles.clear()
         self.pending_register = False
         self.auto_register = False
         self.active = False
         self.reset_hold("WAITING")
-        self.last_center = None
-        self.last_seen_at = 0.0
         self.last_status = "IDLE"
 
 
+class LatestCamera:
+    """推論中も撮影を続け、未処理フレームを蓄積せず最新1枚で上書きする。"""
+
+    def __init__(self, cap) -> None:
+        self.cap = cap
+        self.condition = threading.Condition()
+        self.stop_event = threading.Event()
+        self.frame: np.ndarray | None = None
+        self.sequence = 0
+        self.captured_at = 0.0
+        self.finished = False
+        self.error: Exception | None = None
+        self.thread = threading.Thread(target=self._capture, name="FruitCatchCamera", daemon=True)
+
+    def start(self) -> None:
+        self.thread.start()
+
+    def _capture(self) -> None:
+        try:
+            while not self.stop_event.is_set():
+                ok, frame = self.cap.read()
+                if not ok or frame is None or frame.size == 0:
+                    raise RuntimeError("カメラフレームの取得に失敗しました")
+                captured_at = time.monotonic()
+                with self.condition:
+                    self.frame = frame
+                    self.captured_at = captured_at
+                    self.sequence += 1
+                    self.condition.notify_all()
+        except Exception as exc:
+            self.error = exc
+        finally:
+            self.cap.release()
+            with self.condition:
+                self.finished = True
+                self.condition.notify_all()
+
+    def next_frame(self, after_sequence: int, timeout: float = 0.05):
+        with self.condition:
+            self.condition.wait_for(
+                lambda: self.sequence > after_sequence or self.finished, timeout=timeout)
+            if self.finished:
+                raise RuntimeError("カメラの撮影が停止しました") from self.error
+            if self.sequence <= after_sequence:
+                return None
+            return self.sequence, self.frame, self.captured_at
+
+    def close(self) -> None:
+        self.stop_event.set()
+        if self.thread.ident is None:
+            self.cap.release()
+            return
+        # VideoCaptureのreadとreleaseは同じスレッドで実行する。
+        self.thread.join(timeout=2.0)
+
+
 class PreviewBuffer:
-    """HTTP配信スレッドとMediaPipeの推論ループの間で最新フレームを受け渡す。"""
+    """画像と同じ時点の進捗をHTTPへ渡す。画像は公開後に変更しない。"""
 
     def __init__(self) -> None:
         self.lock = threading.Lock()
-        self.jpeg: bytes | None = None
+        self.frame: np.ndarray | None = None
+        self.last_requested_at: float | None = None
         self.progress = 0.0
         self.hint = "WAITING"
         self.registered = False
         self.hands_raised = False
         self.registration_id = ""
 
-    def update(self, jpeg: bytes | None, progress: float, hint: str,
+    def update(self, frame: np.ndarray, progress: float, hint: str,
                registered: bool, hands_raised: bool, registration_id: str = "") -> None:
         with self.lock:
-            if jpeg is not None:
-                self.jpeg = jpeg
+            self.frame = frame
             self.progress = progress
             self.hint = hint
             self.registered = registered
             self.hands_raised = hands_raised
             self.registration_id = registration_id
 
-    def snapshot(self) -> tuple[bytes | None, float, str, bool, bool, str]:
+    def request(self) -> None:
         with self.lock:
-            return self.jpeg, self.progress, self.hint, self.registered, self.hands_raised, self.registration_id
+            self.last_requested_at = time.monotonic()
+
+    def is_requested(self) -> bool:
+        with self.lock:
+            return (self.last_requested_at is not None and
+                    time.monotonic() - self.last_requested_at < PREVIEW_IDLE_SECONDS)
+
+    def snapshot(self) -> tuple[np.ndarray | None, float, str, bool, bool, str]:
+        with self.lock:
+            return self.frame, self.progress, self.hint, self.registered, self.hands_raised, self.registration_id
 
 
 def make_preview_handler(shared: PreviewBuffer):
@@ -191,12 +235,24 @@ def make_preview_handler(shared: PreviewBuffer):
                 self.send_error(404)
                 return
 
-            jpeg, progress, hint, registered, hands_raised, registration_id = shared.snapshot()
-            if jpeg is None:
+            shared.request()
+            frame, progress, hint, registered, hands_raised, registration_id = shared.snapshot()
+            if frame is None:
                 self.send_response(503)
                 self.send_header("Content-Length", "0")
                 self.end_headers()
                 return
+
+            # JPEG圧縮を追跡ループから分離。取得がない本編では圧縮しない。
+            preview = resize_to_max_width(frame, PREVIEW_MAX_WIDTH)
+            if MIRROR_IMAGE:
+                preview = cv2.flip(preview, 1)
+            success, encoded = cv2.imencode(".jpg", preview,
+                                            [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
+            if not success:
+                self.send_error(503, "Preview encoding failed")
+                return
+            jpeg = encoded.tobytes()
 
             self.send_response(200)
             self.send_header("Content-Type", "image/jpeg")
@@ -223,9 +279,9 @@ def load_camera_config() -> dict:
     config = {
         "camera_name": "",
         "camera_index": 0,
-        "use_max_resolution": True,
-        "width": 1920,
-        "height": 1080,
+        "use_max_resolution": False,
+        "width": 1280,
+        "height": 720,
     }
     if not CAMERA_CONFIG_PATH.is_file():
         print(f"カメラ設定がないため初期値を使用します: {CAMERA_CONFIG_PATH}")
@@ -301,7 +357,7 @@ def configure_camera(index: int, backend: int, name: str, config: dict):
     if not cap.isOpened():
         raise RuntimeError(f"カメラを開けません: {name} (index={index})")
 
-    use_max = bool(config.get("use_max_resolution", True))
+    use_max = bool(config.get("use_max_resolution", False))
     best = None
     if use_max:
         for requested_width, requested_height in RESOLUTION_CANDIDATES:
@@ -316,8 +372,8 @@ def configure_camera(index: int, backend: int, name: str, config: dict):
             if actual_width == requested_width and actual_height == requested_height:
                 break
     else:
-        requested_width = max(1, int(config.get("width", 1920)))
-        requested_height = max(1, int(config.get("height", 1080)))
+        requested_width = max(1, int(config.get("width", 1280)))
+        requested_height = max(1, int(config.get("height", 720)))
         frame = set_capture_mode(cap, requested_width, requested_height)
         if frame is not None:
             actual_height, actual_width = frame.shape[:2]
@@ -368,57 +424,33 @@ def ensure_models() -> None:
             raise
 
 
-def average_landmark(points: list, ids: tuple[int, ...], width: int, height: int) -> tuple[float, float]:
-    return (
-        float(np.mean([points[i].x for i in ids]) * width),
-        float(np.mean([points[i].y for i in ids]) * height),
-    )
-
-
-def collect_faces(face_landmarks: list, width: int, height: int) -> list[Face]:
+def collect_faces(detections: np.ndarray | None, width: int, height: int) -> list[Face]:
+    """YuNetの矩形だけを使用する。本人照合用の特徴抽出は不要。"""
     faces = []
-    for points in face_landmarks:
-        xs = np.asarray([point.x for point in points]) * width
-        ys = np.asarray([point.y for point in points]) * height
-        x0, y0 = int(np.clip(xs.min(), 0, width - 1)), int(np.clip(ys.min(), 0, height - 1))
-        x1, y1 = int(np.clip(xs.max(), 0, width - 1)), int(np.clip(ys.max(), 0, height - 1))
+    if detections is None:
+        return faces
+    for row in detections:
+        if not np.all(np.isfinite(row[:4])):
+            continue
+        x, y, box_width, box_height = row[:4]
+        x0, y0 = int(np.clip(x, 0, width)), int(np.clip(y, 0, height))
+        x1 = int(np.clip(x + box_width, 0, width))
+        y1 = int(np.clip(y + box_height, 0, height))
         w, h = x1 - x0, y1 - y0
         if min(w, h) < MIN_FACE_SIZE_PX:
             continue
-
-        eye_a = average_landmark(points, (33, 133, 159, 145), width, height)
-        eye_b = average_landmark(points, (362, 263, 386, 374), width, height)
-        eye_left, eye_right = sorted((eye_a, eye_b), key=lambda p: p[0])
-        nose = average_landmark(points, (1,), width, height)
-        mouth_a = average_landmark(points, (61,), width, height)
-        mouth_b = average_landmark(points, (291,), width, height)
-        mouth_left, mouth_right = sorted((mouth_a, mouth_b), key=lambda p: p[0])
-        face_row = np.asarray([
-            x0, y0, w, h,
-            *eye_left, *eye_right, *nose, *mouth_left, *mouth_right,
-            1.0,
-        ], dtype=np.float32)
         faces.append(Face(
             rect=(x0, y0, w, h),
-            sface_input=face_row,
             center=((x0 + x1) / 2.0, (y0 + y1) / 2.0),
         ))
     return faces
 
 
-def extract_feature(recognizer, frame: np.ndarray, face: Face) -> np.ndarray | None:
-    if face.descriptor is not None:
-        return face.descriptor
-    try:
-        aligned = recognizer.alignCrop(frame, face.sface_input)
-        descriptor = recognizer.feature(aligned).reshape(-1).astype(np.float32)
-        magnitude = float(np.linalg.norm(descriptor))
-        if magnitude < 1e-9 or not np.isfinite(magnitude):
-            return None
-        face.descriptor = descriptor / magnitude
-        return face.descriptor
-    except cv2.error:
-        return None
+def detect_faces(detector, frame: np.ndarray) -> list[Face]:
+    height, width = frame.shape[:2]
+    detector.setInputSize((width, height))
+    _, detections = detector.detect(frame)
+    return collect_faces(detections, width, height)
 
 
 def send_status(sock: socket.socket, state: TrackingState, status: str, force: bool = False) -> None:
@@ -519,31 +551,19 @@ def has_raised_both_hands(pose_landmarks: list) -> bool:
 
 def complete_registration(
     state: TrackingState,
-    face: Face,
-    descriptor: np.ndarray,
     status_sock: socket.socket,
 ) -> None:
-    # 初期の顔特徴と、3秒後の顔特徴を登録（メモリ内のみ）
-    state.profiles = [descriptor.copy()]
-    if state.hold_descriptor is not None:
-        initial = state.hold_descriptor
-        if float(np.dot(initial, descriptor)) < 0.98:
-            state.profiles.append(initial.copy())
     state.active = True
     state.pending_register = False
     state.auto_register = False
     state.hold_start = None
-    state.hold_descriptor = None
     state.progress = 1.0
     state.hint = "DONE"
-    state.last_center = face.center
-    state.last_seen_at = time.monotonic()
     send_status(status_sock, state, "REGISTERED", force=True)
 
 
 def process_registration(
     state: TrackingState,
-    recognizer,
     frame: np.ndarray,
     faces: list[Face],
     status_sock: socket.socket,
@@ -580,28 +600,16 @@ def process_registration(
             send_status(status_sock, state, hint)
             return None
 
-    descriptor = extract_feature(recognizer, frame, face)
-    if descriptor is None:
-        state.reset_hold("REGISTER_FAILED")
-        send_status(status_sock, state, "REGISTER_FAILED")
-        return None
-
     if not state.auto_register:
-        complete_registration(state, face, descriptor, status_sock)
+        complete_registration(state, status_sock)
         return face_index
 
     now = time.monotonic()
     if state.missing_since is not None and now - state.missing_since > DETECTION_GRACE_SECONDS:
         state.reset_hold("HOLD")
     state.missing_since = None
-    if state.hold_descriptor is not None:
-        similarity = float(np.dot(state.hold_descriptor, descriptor))
-        if similarity < HOLD_IDENTITY_THRESHOLD:
-            state.reset_hold("HOLD")  # 別人の顔へ途中で切り替わったらカウントをやり直す
-
     if state.hold_start is None:
         state.hold_start = now
-        state.hold_descriptor = descriptor.copy()
 
     if state.hold_last_valid is not None:
         gap = now - state.hold_last_valid
@@ -613,71 +621,38 @@ def process_registration(
     state.hint = "HOLD"
     send_status(status_sock, state, "HOLD")
     if state.progress >= 1.0:
-        complete_registration(state, face, descriptor, status_sock)
+        complete_registration(state, status_sock)
         return face_index
     return None
 
 
-def select_registered_face(
-    state: TrackingState,
-    recognizer,
-    frame: np.ndarray,
-    faces: list[Face],
-) -> tuple[int | None, float]:
-    scores = []
-    for face in faces:
-        descriptor = extract_feature(recognizer, frame, face)
-        if descriptor is None:
-            scores.append(-1.0)
-        else:
-            scores.append(max(float(np.dot(descriptor, p)) for p in state.profiles))
-    if not scores:
-        return None, 0.0
-    ranked = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
-    best = ranked[0]
-    score = scores[best]
-    if score < MATCH_THRESHOLD:
-        return None, score
-    if len(ranked) > 1 and scores[ranked[1]] >= score - AMBIGUITY_MARGIN:
-        return None, score
-
-    if state.last_center is not None and time.monotonic() - state.last_seen_at < 0.4:
-        distance = np.hypot(
-            faces[best].center[0] - state.last_center[0],
-            faces[best].center[1] - state.last_center[1],
-        )
-        if distance > 0.45 * frame.shape[1] and score < 0.70:
-            return None, score
-    return best, score
+def select_single_face(faces: list[Face]) -> int | None:
+    # 1人だけが映る運用。複数検出時は対象を勝手に切り替えない。
+    return 0 if len(faces) == 1 else None
 
 
 def run() -> None:
+    import mediapipe as mp  # 準備画面の両手上げ判定にだけ使用。
+
     ensure_models()
-    if not hasattr(cv2, "FaceRecognizerSF"):
-        raise RuntimeError("opencv-contrib-pythonが必要です（FaceRecognizerSF がありません）")
+    if not hasattr(cv2, "FaceDetectorYN"):
+        raise RuntimeError("OpenCV 4.8以上が必要です。Setup FruitCatch.batを再実行してください")
 
     camera_config = load_camera_config()
     camera_index, camera_backend, camera_name = select_camera(camera_config)
 
-    recognizer = cv2.FaceRecognizerSF.create(str(SFACE_PATH), "")
-    options = mp.tasks.vision.FaceLandmarkerOptions(
-        base_options=mp.tasks.BaseOptions(model_asset_path=str(LANDMARKER_PATH)),
-        running_mode=mp.tasks.vision.RunningMode.VIDEO,
-        num_faces=MAX_DETECTED_FACES,
-        min_face_detection_confidence=0.5,
-        min_face_presence_confidence=0.5,
-        min_tracking_confidence=0.5,
-    )
+    detector = cv2.FaceDetectorYN.create(str(FACE_DETECTOR_PATH), "", (320, 320), 0.8, 0.3)
     pose_options = mp.tasks.vision.PoseLandmarkerOptions(
         base_options=mp.tasks.BaseOptions(model_asset_path=str(POSE_PATH)),
         running_mode=mp.tasks.vision.RunningMode.VIDEO,
-        num_poses=4,
+        num_poses=1,
         min_pose_detection_confidence=0.5,
         min_pose_presence_confidence=0.5,
         min_tracking_confidence=0.5,
     )
 
     cap = configure_camera(camera_index, camera_backend, camera_name, camera_config)
+    camera = LatestCamera(cap)
 
     position_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     status_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -685,6 +660,7 @@ def run() -> None:
     http_server = None
     server_thread = None
     try:
+        camera.start()
         command_sock.bind(("127.0.0.1", PYTHON_COMMAND_PORT))
         command_sock.setblocking(False)
 
@@ -696,51 +672,35 @@ def run() -> None:
 
         state = TrackingState()
         last_timestamp_ms = -1
-        last_preview_at = 0.0
+        last_pose_at = 0.0
+        sequence = 0
+        hands_raised = False
         print(f"Unity preview: http://{PREVIEW_HOST}:{PREVIEW_PORT}/frame.jpg")
         print(f"Unity command UDP: {PYTHON_COMMAND_PORT}; tracking X UDP: {UNITY_POSITION_PORT}; status UDP: {UNITY_STATUS_PORT}")
         print("登録待ち。Unityの登録画面から AUTO コマンドを送信してください。")
 
-        with (mp.tasks.vision.FaceLandmarker.create_from_options(options) as detector,
-              mp.tasks.vision.PoseLandmarker.create_from_options(pose_options) as pose_detector):
+        with mp.tasks.vision.PoseLandmarker.create_from_options(pose_options) as pose_detector:
             while True:
                 read_commands(command_sock, state, status_sock)
-                ok, frame = cap.read()
-                if not ok:
-                    print("カメラフレームの取得に失敗しました")
-                    break
-                if MIRROR_IMAGE:
-                    frame = cv2.flip(frame, 1)
+                captured = camera.next_frame(sequence)
+                if captured is None:
+                    continue
+                sequence, frame, captured_at = captured
 
                 analysis_frame = resize_to_max_width(frame, ANALYSIS_MAX_WIDTH)
-                rgb = cv2.cvtColor(analysis_frame, cv2.COLOR_BGR2RGB)
-                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-                timestamp_ms = max(int(time.monotonic() * 1000), last_timestamp_ms + 1)
-                last_timestamp_ms = timestamp_ms
-                result = detector.detect_for_video(mp_image, timestamp_ms)
-                pose_result = pose_detector.detect_for_video(mp_image, timestamp_ms)
-                faces = collect_faces(result.face_landmarks, analysis_frame.shape[1], analysis_frame.shape[0])
-                hands_raised = has_raised_both_hands(pose_result.pose_landmarks)
+                if MIRROR_IMAGE:
+                    analysis_frame = cv2.flip(analysis_frame, 1)
+                faces = detect_faces(detector, analysis_frame) if state.pending_register or state.active else []
 
                 selected = None
-                score = 0.0
                 if state.pending_register:
-                    selected = process_registration(state, recognizer, analysis_frame, faces, status_sock)
+                    selected = process_registration(state, analysis_frame, faces, status_sock)
                 elif state.active:
-                    selected, score = select_registered_face(state, recognizer, analysis_frame, faces)
+                    selected = select_single_face(faces)
                     if selected is None:
                         send_status(status_sock, state, "LOST")
                     else:
-                        state.last_center = faces[selected].center
-                        state.last_seen_at = time.monotonic()
                         send_status(status_sock, state, "TRACKING")
-                        descriptor = faces[selected].descriptor
-                        if descriptor is not None and score >= ADD_PROFILE_THRESHOLD and state.frame_count % 15 == 0:
-                            max_similarity = max(float(np.dot(descriptor, p)) for p in state.profiles)
-                            if max_similarity < 0.97:
-                                state.profiles.append(descriptor.copy())
-                                if len(state.profiles) > MAX_FACE_PROFILES:
-                                    state.profiles.pop(1)
 
                 if selected is not None:
                     normalized_x = float(np.clip(faces[selected].center[0] / analysis_frame.shape[1], 0.0, 1.0))
@@ -748,14 +708,19 @@ def run() -> None:
                                          (UNITY_IP, UNITY_POSITION_PORT))
 
                 now = time.monotonic()
-                if now - last_preview_at >= 1.0 / PREVIEW_FPS:
-                    # 描画画像に検出矩形を合成しない。Unityのガイドを重ねて使う。
-                    preview_frame = resize_to_max_width(frame, PREVIEW_MAX_WIDTH)
-                    success, encoded = cv2.imencode(".jpg", preview_frame,
-                                                    [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
-                    shared.update(encoded.tobytes() if success else None,
-                                  state.progress, state.hint, state.active, hands_raised, state.registration_id)
-                    last_preview_at = now
+                if shared.is_requested():
+                    if now - last_pose_at >= 1.0 / POSE_FPS:
+                        rgb = cv2.cvtColor(analysis_frame, cv2.COLOR_BGR2RGB)
+                        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+                        timestamp_ms = max(int(captured_at * 1000), last_timestamp_ms + 1)
+                        last_timestamp_ms = timestamp_ms
+                        pose_result = pose_detector.detect_for_video(mp_image, timestamp_ms)
+                        hands_raised = has_raised_both_hands(pose_result.pose_landmarks)
+                        last_pose_at = now
+                else:
+                    hands_raised = False
+                shared.update(frame, state.progress, state.hint, state.active,
+                              hands_raised, state.registration_id)
 
                 if SHOW_DEBUG_WINDOW:
                     debug = analysis_frame.copy()
@@ -769,9 +734,8 @@ def run() -> None:
                     if cv2.waitKey(1) & 0xFF == ord("q"):
                         break
 
-                state.frame_count += 1
     finally:
-        cap.release()
+        camera.close()
         command_sock.close()
         position_sock.close()
         status_sock.close()

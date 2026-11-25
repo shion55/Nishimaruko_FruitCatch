@@ -1,4 +1,4 @@
 mediapipe
 numpy
-opencv-contrib-python
+opencv-contrib-python>=4.8,<5
 cv2-enumerate-cameras

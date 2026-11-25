@@ -7,7 +7,7 @@ $trackerPath = Join-Path $trackingRoot 'face_tracker_registered.py'
 
 $needsSetup = -not (Test-Path -LiteralPath $pythonPath)
 if (-not $needsSetup) {
-    & $pythonPath -c "import cv2, cv2_enumerate_cameras, mediapipe, numpy; assert hasattr(cv2, 'FaceRecognizerSF')" 2>$null
+    & $pythonPath -c "import cv2, cv2_enumerate_cameras, mediapipe, numpy; assert hasattr(cv2, 'FaceDetectorYN'); assert (4, 8) <= tuple(map(int, cv2.__version__.split('.')[:2])) < (5, 0)" 2>$null
     $needsSetup = $LASTEXITCODE -ne 0
 }
 if ($needsSetup) {
@@ -23,7 +23,7 @@ try {
         -WorkingDirectory $trackingRoot -WindowStyle Hidden -PassThru
 
     $ready = $false
-    # 初回はカメラの最大解像度確認に時間がかかる場合がある。
+    # カメラと判定モデルの準備を待つ。
     for ($attempt = 0; $attempt -lt 120; $attempt++) {
         if ($tracker.HasExited) { throw 'カメラ判定プログラムが途中で終了しました。' }
         try {

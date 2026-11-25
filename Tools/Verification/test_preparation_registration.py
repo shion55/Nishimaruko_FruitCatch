@@ -36,18 +36,15 @@ class PreparationRegistrationTests(unittest.TestCase):
     def setUp(self):
         self.state = tracker.TrackingState(pending_register=True, auto_register=True, guide_region=REGION)
         self.frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        self.descriptor = np.zeros(128, dtype=np.float32)
-        self.descriptor[0] = 1
         self.status = Status()
 
-    def face(self, cx=0.27, cy=0.58, width=0.16, height=0.36, descriptor=None):
-        return tracker.Face((0, 0, int(width * 640), int(height * 480)), np.zeros(15),
-                            (cx * 640, cy * 480),
-                            self.descriptor if descriptor is None else descriptor)
+    def face(self, cx=0.27, cy=0.58, width=0.16, height=0.36):
+        return tracker.Face((0, 0, int(width * 640), int(height * 480)),
+                            (cx * 640, cy * 480))
 
     def tick(self, now, faces=None):
         with patch.object(tracker.time, "monotonic", return_value=now):
-            return tracker.process_registration(self.state, None, self.frame,
+            return tracker.process_registration(self.state, self.frame,
                                                 [self.face()] if faces is None else faces, self.status)
 
     def test_visible_frame_checks_position_but_not_face_size(self):
@@ -89,7 +86,7 @@ class PreparationRegistrationTests(unittest.TestCase):
             self.tick(float(i))
         self.assertTrue(self.state.active)
 
-    def test_second_player_outside_oval_does_not_block_registration(self):
+    def test_detection_outside_oval_does_not_block_alignment(self):
         other = self.face(cx=0.75)
         for i in range(32):
             result = self.tick(i / 10, [other, self.face()])
@@ -98,7 +95,7 @@ class PreparationRegistrationTests(unittest.TestCase):
                 break
         self.assertTrue(self.state.active)
 
-    def test_two_faces_in_oval_or_changed_person_reset_progress(self):
+    def test_multiple_faces_or_leaving_oval_reset_progress(self):
         self.tick(0)
         self.tick(0.1)
         self.tick(0.2, [self.face(), self.face(cx=0.3)])
@@ -106,10 +103,14 @@ class PreparationRegistrationTests(unittest.TestCase):
         self.assertEqual(self.state.progress, 0)
         self.tick(0.3)
         self.tick(0.4)
-        different = np.zeros(128, dtype=np.float32)
-        different[1] = 1
-        self.tick(0.5, [self.face(descriptor=different)])
+        self.tick(0.5, [self.face(cx=0.6)])
         self.assertEqual(self.state.progress, 0)
+        self.assertEqual(self.state.hint, "MOVE_CENTER")
+
+    def test_immediate_registration_needs_no_identity_profile(self):
+        self.state.auto_register = False
+        self.assertEqual(self.tick(0), 0)
+        self.assertTrue(self.state.active)
 
     def test_command_retries_are_idempotent_but_new_session_clears_registration(self):
         command = f"AUTO_REGION {TOKEN} 0.16 0.32 0.22 0.52"
@@ -132,8 +133,10 @@ class PreparationRegistrationTests(unittest.TestCase):
 
     def test_preview_metadata_has_session_and_progress_from_same_snapshot(self):
         shared = tracker.PreviewBuffer()
-        shared.update(b"jpeg", 0.4, "HOLD", False, True, TOKEN)
-        self.assertEqual(shared.snapshot(), (b"jpeg", 0.4, "HOLD", False, True, TOKEN))
+        shared.update(self.frame, 0.4, "HOLD", False, True, TOKEN)
+        frame, *metadata = shared.snapshot()
+        self.assertIs(frame, self.frame)
+        self.assertEqual(metadata, [0.4, "HOLD", False, True, TOKEN])
 
 
 if __name__ == "__main__":
