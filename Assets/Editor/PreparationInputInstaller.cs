@@ -87,7 +87,7 @@ public static class PreparationInputInstaller
             PreparationSignal.Timed
         };
         float[] holdSeconds = { 1f, 7f, 0.1f, 1f, 7f, 2f };
-        for (int i = 0; i < Mathf.Min(steps.arraySize, signals.Length); i++)
+        for (int i = 0; steps.arraySize == signals.Length && i < signals.Length; i++)
         {
             SerializedProperty step = steps.GetArrayElementAtIndex(i);
             step.FindPropertyRelative("requiredSignal").enumValueIndex = (int)signals[i];

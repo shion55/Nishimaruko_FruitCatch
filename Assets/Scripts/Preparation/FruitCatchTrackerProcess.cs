@@ -27,7 +27,7 @@ namespace FruitCatch.Preparation
                 quitHookRegistered = true;
             }
 
-            if (startAutomatically)
+            if (startAutomatically && (!Application.isEditor || !Application.isBatchMode))
                 StartTracker();
         }
 

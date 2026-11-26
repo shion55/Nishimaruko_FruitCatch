@@ -8,6 +8,7 @@ public class CharacterPairController : MonoBehaviour
     [SerializeField, Min(0f)] private float moveSpeed = 5f; // 横移動速度の上限（units/秒）。
     [SerializeField, Min(0.01f)] private float followSmoothTime = 0.2f; // 追従の滑らかさ（秒）。大きいほど緩やか。
     [SerializeField, Min(0f)] private float horizontalMargin = 0.7f;
+    [SerializeField] private bool allowKeyboardMovement = true;
 
     [Header("Fever")]
     [SerializeField] private FallingItemSpawner fallingItemSpawner;
@@ -112,7 +113,7 @@ public class CharacterPairController : MonoBehaviour
             return;
         }
 
-        float keyboardInput = ReadKeyboardInput();
+        float keyboardInput = allowKeyboardMovement ? ReadKeyboardInput() : 0f;
         if (keyboardInput != 0f)
         {
             // キーを押している間は顔入力より優先し、同じ座標を上書きしない。

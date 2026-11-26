@@ -1,10 +1,12 @@
 ﻿
 using UnityEngine;
+using UnityEngine.UI;
 
 public class CarrierAnimator : MonoBehaviour
 {
     [Header("Sprites")]
     [SerializeField] private SpriteRenderer spriteRenderer;
+    [SerializeField] private Image uiImage;
     [SerializeField] private Sprite frontSprite;
     [SerializeField] private Sprite[] walkSprites = new Sprite[2];
 
@@ -27,7 +29,7 @@ public class CarrierAnimator : MonoBehaviour
             spriteRenderer = GetComponentInChildren<SpriteRenderer>();
 
         previousPosition = transform.position;
-        spriteRenderer.sprite = frontSprite;
+        SetSprite(frontSprite, false);
     }
 
     void LateUpdate()
@@ -40,8 +42,7 @@ public class CarrierAnimator : MonoBehaviour
         // 停止している場合
         if (Mathf.Abs(speedX) < moveThreshold)
         {
-            spriteRenderer.sprite = frontSprite;
-            spriteRenderer.flipX = false;
+            SetSprite(frontSprite, false);
 
             animationTimer = 0f;
             frameIndex = 0;
@@ -50,7 +51,7 @@ public class CarrierAnimator : MonoBehaviour
 
         // 移動方向によって左右反転
         bool movingRight = speedX > 0f;
-        spriteRenderer.flipX = spritesFaceRight
+        bool flip = spritesFaceRight
             ? !movingRight
             : movingRight;
 
@@ -58,7 +59,10 @@ public class CarrierAnimator : MonoBehaviour
         if (walkSprites.Length < 2 ||
             walkSprites[0] == null ||
             walkSprites[1] == null)
+        {
+            SetSprite(null, flip);
             return;
+        }
 
         float feverMultiplier = fallingItemSpawner != null && fallingItemSpawner.IsFever
             ? Mathf.Max(1f, feverWalkSpeedMultiplier) : 1f;
@@ -71,6 +75,20 @@ public class CarrierAnimator : MonoBehaviour
             frameIndex = (frameIndex + 1) % 2;
         }
 
-        spriteRenderer.sprite = walkSprites[frameIndex];
+        SetSprite(walkSprites[frameIndex], flip);
+    }
+
+    private void SetSprite(Sprite sprite, bool flip)
+    {
+        if (uiImage != null)
+        {
+            if (sprite != null) uiImage.sprite = sprite;
+            uiImage.rectTransform.localRotation = Quaternion.Euler(0f, flip ? 180f : 0f, 0f);
+        }
+        else if (spriteRenderer != null)
+        {
+            if (sprite != null) spriteRenderer.sprite = sprite;
+            spriteRenderer.flipX = flip;
+        }
     }
 }
