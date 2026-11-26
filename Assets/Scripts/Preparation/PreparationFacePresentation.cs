@@ -157,8 +157,12 @@ namespace FruitCatch.Preparation
 
         public void Capture(Texture2D frame)
         {
+            Capture(frame, GetGuideUv());
+        }
+
+        public void Capture(Texture2D frame, Rect uv)
+        {
             if (snapshot != null || playing || frame == null) return;
-            Rect uv = GetGuideUv();
             int x = Mathf.Clamp(Mathf.FloorToInt(uv.xMin * frame.width), 0, frame.width - 1);
             int y = Mathf.Clamp(Mathf.FloorToInt(uv.yMin * frame.height), 0, frame.height - 1);
             int w = Mathf.Clamp(Mathf.RoundToInt(uv.width * frame.width), 1, frame.width - x);

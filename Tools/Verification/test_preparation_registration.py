@@ -6,6 +6,7 @@ import sys
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -131,12 +132,21 @@ class PreparationRegistrationTests(unittest.TestCase):
             tracker.read_commands(Commands(f"AUTO_REGION {'B' * 32} {bounds}"), self.state, self.status)
             self.assertEqual(self.state.registration_id, TOKEN)
 
-    def test_preview_metadata_has_session_and_progress_from_same_snapshot(self):
-        shared = tracker.PreviewBuffer()
-        shared.update(self.frame, 0.4, "HOLD", False, True, TOKEN)
-        frame, *metadata = shared.snapshot()
-        self.assertIs(frame, self.frame)
-        self.assertEqual(metadata, [0.4, "HOLD", False, True, TOKEN])
+    def test_small_face_waits_for_body_and_enrolls_the_matching_shoulders(self):
+        target = SimpleNamespace(x=0.31)
+        small = self.face(width=0.03, height=0.05)
+        for i in range(35):
+            tracker.process_registration(self.state, self.frame, [small], self.status,
+                                         lambda _: None, i / 10)
+        self.assertEqual(self.state.hint, "NO_BODY")
+        self.assertEqual(self.state.progress, 0)
+        for i in range(35, 67):
+            tracker.process_registration(self.state, self.frame, [small], self.status,
+                                         lambda _: target, i / 10)
+            if self.state.active:
+                break
+        self.assertTrue(self.state.active)
+        self.assertIs(self.state.target.target, target)
 
 
 if __name__ == "__main__":

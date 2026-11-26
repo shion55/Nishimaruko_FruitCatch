@@ -42,7 +42,11 @@
 - 初回準備: `Setup FruitCatch.bat`
 - 通常起動: `Start FruitCatch.bat`
 
-PythonがないWindows PCでは、セットアップ時にPython 3.12を準備します。カメラとマイクを接続して使用してください。
+PythonがないWindows PCでは、セットアップ時にPython 3.12を準備します。通常起動では日本語のランチャーが開きます。カメラとマイクを接続し、カラープレビューを確認して「ゲーム起動」を押してください。
+
+「詳細設定」で解像度・要求FPS・映像形式と、骨格追跡／顔追跡を変更できます。Unity側の表示は30fpsが目標で、実測値はカメラやPCに依存します。[Windows配布版の起動ガイド](Tools/Distribution/はじめに.txt)
+
+カメラなしの回帰テストは `python -m unittest discover -s Tools/Verification` で実行できます。
 
 ## macOSでの開発
 

@@ -16,3 +16,4 @@ Assets/_Recovery.meta
 *.suo
 *.user
 *.userprefs
+__pycache__/

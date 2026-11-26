@@ -4607,7 +4607,7 @@ MonoBehaviour:
   pythonIp: 127.0.0.1
   previewHttpPort: 8765
   commandPort: 5006
-  previewFps: 15
+  previewFps: 30
   requestTimeoutSeconds: 2
   flow: {fileID: 1793840064}
   cameraSurface: {fileID: 373985860}
