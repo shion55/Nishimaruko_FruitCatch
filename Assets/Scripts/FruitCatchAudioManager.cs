@@ -11,6 +11,7 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
     private AudioSource transformationSource;
     private AudioSource soundEffectSource;
     private Coroutine musicFade;
+    private bool quietPreparationBgm;
 
     public static FruitCatchAudioManager Instance
     {
@@ -63,6 +64,39 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
     public void PlayFinish() => PlayOneShot(settings?.FinishSound, settings?.FinishSoundVolume ?? 0f);
     public void PlayFruitBounce() => PlayOneShot(settings?.FruitBounceSound, settings?.FruitBounceSoundVolume ?? 0f);
     public void PlayFruitEat() => PlayOneShot(settings?.FruitEatSound, settings?.FruitEatSoundVolume ?? 0f);
+    public void PlayPracticeSuccess(bool fruit)
+    {
+        if (fruit) PlayFruitEat();
+        PlayOneShot(fruit ? settings?.FruitPracticeSuccess : settings?.MovementPracticeSuccess,
+            settings?.PracticeSuccessVolume ?? 1f);
+    }
+
+    public void PlayQuietPreparationBgm(float volume, float duration)
+    {
+        if (settings == null || settings.MainMenuBgm == null) return;
+        PlayMusic(settings.MainMenuBgm, 0f, true);
+        quietPreparationBgm = true;
+        musicFade = StartCoroutine(FadeInMusicRoutine(settings.MainMenuBgmVolume * volume, duration));
+    }
+
+    public void FadeOutPreparationBgm(float duration)
+    {
+        if (!quietPreparationBgm) return;
+        quietPreparationBgm = false;
+        FadeOutMusic(duration);
+    }
+
+    private IEnumerator FadeInMusicRoutine(float volume, float duration)
+    {
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            musicSource.volume = Mathf.Lerp(0f, volume, elapsed / duration);
+            yield return null;
+        }
+        musicSource.volume = volume;
+    }
 
     public void PlayTransformation()
     {
@@ -126,6 +160,7 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
 
     private void PlayMusic(AudioClip clip, float volume, bool loop)
     {
+        quietPreparationBgm = false;
         if (clip == null)
             return;
         StopMusicFade();

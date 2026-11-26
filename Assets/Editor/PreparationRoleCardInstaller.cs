@@ -60,7 +60,7 @@ public static class PreparationRoleCardInstaller
             ConfigureRoleText(
                 facePanel.transform,
                 "CarrierExplanation",
-                "[顔|かお]を[横|よこ]に[動|うご]かして\nパクッチョを はこんであげよう");
+                "[体|からだ]を[左右|さゆう]に[動|うご]かして\nパクッチョを はこんであげよう");
             CreateActionBanner(
                 facePanel.transform,
                 "FaceActionBanner",

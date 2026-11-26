@@ -2936,6 +2936,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CarrierAnimator
   spriteRenderer: {fileID: 1038277770}
+  uiImage: {fileID: 0}
   frontSprite: {fileID: 21300000, guid: 25022f68c0e38e449b8c897c1ab81152, type: 3}
   walkSprites:
   - {fileID: 21300000, guid: a5e5c2bb175b0fc4ea5bda5de16f7346, type: 3}
@@ -5434,6 +5435,7 @@ MonoBehaviour:
   moveSpeed: 5
   followSmoothTime: 0.2
   horizontalMargin: 0.7
+  allowKeyboardMovement: 1
   fallingItemSpawner: {fileID: 548926923}
   feverSpeedMultiplier: 1.5
   chiliDuration: 5
