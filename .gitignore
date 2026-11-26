@@ -17,3 +17,4 @@ Assets/_Recovery.meta
 *.user
 *.userprefs
 __pycache__/
+.venv/
