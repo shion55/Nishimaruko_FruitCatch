@@ -1,15 +1,16 @@
 using UnityEngine;
 
-/// <summary>フィーバー専用の粒子・残像・背景色。取得ルールや移動には干渉しない。</summary>
+/// <summary>フィーバー中の粒子、残像、全画面のオーロラを制御します。</summary>
 [DisallowMultipleComponent]
 public sealed class FeverPresentationController : MonoBehaviour
 {
     [Header("References")]
     [SerializeField] private FallingItemSpawner spawner;
     [SerializeField] private EaterCatchController eater;
+    [SerializeField] private CatchEffectPlayer catchEffectPlayer;
     [SerializeField] private SpriteRenderer eaterRenderer;
     [SerializeField] private SpriteRenderer carrierRenderer;
-    [SerializeField] private SpriteRenderer background;
+    [SerializeField] private MeshRenderer auroraRenderer;
     [SerializeField] private Material sparkleMaterial;
     [SerializeField] private Material dustMaterial;
 
@@ -26,36 +27,50 @@ public sealed class FeverPresentationController : MonoBehaviour
     [SerializeField, Range(0f, 0.5f)] private float afterimageAlpha = 0.18f;
     [SerializeField, Range(0.05f, 0.3f)] private float afterimageLifetime = 0.24f;
 
-    [Header("Background")]
-    [SerializeField] private Color backgroundTint = new Color(1f, 0.68f, 0.2f);
-    [SerializeField, Range(0f, 0.4f)] private float backgroundStrength = 0.18f;
-    [SerializeField, Min(0.1f)] private float pulsePeriod = 1.4f;
+    [Header("Aurora")]
+    [SerializeField, Range(0f, 0.55f)] private float auroraOpacity = 0.42f;
+    [SerializeField, Min(0.01f)] private float fadeInSeconds = 0.42f;
+    [SerializeField, Min(0.01f)] private float fadeOutSeconds = 0.9f;
 
-    private static readonly int FeverTintId = Shader.PropertyToID("_FeverTint");
+    private static readonly int AuroraAlphaId = Shader.PropertyToID("_AuroraAlpha");
     private readonly SpriteRenderer[] afterimages = new SpriteRenderer[4];
     private readonly float[] afterimageAges = new float[4];
     private ParticleSystem auraParticles;
     private ParticleSystem catchParticles;
     private ParticleSystem dustParticles;
     private Mesh starMesh;
-    private MaterialPropertyBlock properties;
-    private Color originalTint;
+    private Mesh auroraMesh;
+    private Camera auroraCamera;
+    private MaterialPropertyBlock auroraProperties;
+    private float auroraFade;
     private Vector3 previousCarrierPosition;
     private bool presenting;
-    private float elapsed;
     private float sparkleTimer;
     private float trailTimer;
     private int nextAfterimage;
 
     private bool IsFever => spawner != null && spawner.IsFever;
+    private bool EatingEffectsEnabled => catchEffectPlayer == null || catchEffectPlayer.EatingEffectsEnabled;
 
     private void Awake()
     {
-        properties = new MaterialPropertyBlock();
-        if (background != null)
+        if (auroraRenderer != null)
         {
-            background.GetPropertyBlock(properties);
-            originalTint = properties.GetColor(FeverTintId);
+            auroraCamera = auroraRenderer.GetComponentInParent<Camera>();
+            auroraProperties = new MaterialPropertyBlock();
+            auroraMesh = new Mesh
+            {
+                name = "Fever Aurora Quad",
+                vertices = new[]
+                {
+                    new Vector3(-0.5f, -0.5f), new Vector3(0.5f, -0.5f),
+                    new Vector3(0.5f, 0.5f), new Vector3(-0.5f, 0.5f)
+                },
+                uv = new[] { Vector2.zero, Vector2.right, Vector2.one, Vector2.up },
+                triangles = new[] { 0, 1, 2, 0, 2, 3 }
+            };
+            auroraRenderer.GetComponent<MeshFilter>().sharedMesh = auroraMesh;
+            auroraRenderer.enabled = false;
         }
 
         // 生成は起動時の一度だけ。イベントごとにGameObjectやMaterialを増やさない。
@@ -86,7 +101,13 @@ public sealed class FeverPresentationController : MonoBehaviour
         float speed = Mathf.Abs(position.x - previousCarrierPosition.x) / Mathf.Max(Time.deltaTime, 0.0001f);
         previousCarrierPosition = position;
 
-        if (!IsFever)
+        bool fever = IsFever;
+        float fadeSeconds = fever ? fadeInSeconds : fadeOutSeconds;
+        auroraFade = Mathf.MoveTowards(auroraFade, fever ? 1f : 0f,
+            Time.deltaTime / Mathf.Max(0.01f, fadeSeconds));
+        UpdateAurora();
+
+        if (!fever)
         {
             if (presenting)
                 StopPresentation();
@@ -94,10 +115,11 @@ public sealed class FeverPresentationController : MonoBehaviour
         }
         if (!presenting)
             StartPresentation();
+        if (!EatingEffectsEnabled && catchParticles.isPlaying)
+            catchParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         if (Time.deltaTime <= 0f)
             return;
 
-        elapsed += Time.deltaTime;
         sparkleTimer -= Time.deltaTime;
         if (sparkleTimer <= 0f)
         {
@@ -112,20 +134,13 @@ public sealed class FeverPresentationController : MonoBehaviour
             trailTimer = Mathf.Max(0.03f, trailInterval);
         }
         FadeAfterimages();
-
-        // 波紋が設定したPropertyBlockを読み直し、この演出の色だけを更新する。
-        float pulse = 0.5f + 0.5f * Mathf.Sin(elapsed * Mathf.PI * 2f / Mathf.Max(0.1f, pulsePeriod));
-        Color tint = backgroundTint;
-        tint.a = backgroundStrength * Mathf.Lerp(0.65f, 1f, pulse) * Mathf.Clamp01(elapsed / 0.18f);
-        SetBackgroundTint(tint);
     }
 
     private void StartPresentation()
     {
         presenting = true;
-        elapsed = sparkleTimer = trailTimer = 0f;
+        sparkleTimer = trailTimer = 0f;
         auraParticles.Play();
-        catchParticles.Play();
         dustParticles.Play();
         EmitAura(Mathf.Max(1, startSparkleCount));
     }
@@ -137,9 +152,11 @@ public sealed class FeverPresentationController : MonoBehaviour
         // フィーバー果物を取った瞬間から反応する。
         if (!presenting)
             StartPresentation();
-        if (consumption.Category != ItemCategory.Fruit)
+        if (consumption.Category != ItemCategory.Fruit || !EatingEffectsEnabled)
             return;
 
+        if (!catchParticles.isPlaying)
+            catchParticles.Play();
         Vector3 origin = eaterRenderer != null ? eaterRenderer.bounds.center : consumption.WorldPosition;
         for (int i = 0; i < Mathf.Max(1, catchSparkleCount); i++)
         {
@@ -200,8 +217,8 @@ public sealed class FeverPresentationController : MonoBehaviour
         ghost.sharedMaterial = carrierRenderer.sharedMaterial;
         ghost.flipX = carrierRenderer.flipX;
         ghost.flipY = carrierRenderer.flipY;
-        ghost.sortingLayerID = carrierRenderer.sortingLayerID;
-        ghost.sortingOrder = carrierRenderer.sortingOrder - 1;
+        ghost.sortingLayerID = auroraRenderer != null ? auroraRenderer.sortingLayerID : carrierRenderer.sortingLayerID;
+        ghost.sortingOrder = auroraRenderer != null ? auroraRenderer.sortingOrder + 1 : carrierRenderer.sortingOrder - 1;
         ghost.transform.SetPositionAndRotation(carrierRenderer.transform.position, carrierRenderer.transform.rotation);
         ghost.transform.localScale = carrierRenderer.transform.lossyScale;
         ghost.enabled = true;
@@ -252,8 +269,9 @@ public sealed class FeverPresentationController : MonoBehaviour
         color.color = gradient;
         var renderer = particles.GetComponent<ParticleSystemRenderer>();
         renderer.sharedMaterial = material;
-        renderer.sortingLayerID = eaterRenderer != null ? eaterRenderer.sortingLayerID : 0;
-        renderer.sortingOrder = 4;
+        renderer.sortingLayerID = auroraRenderer != null ? auroraRenderer.sortingLayerID
+            : eaterRenderer != null ? eaterRenderer.sortingLayerID : 0;
+        renderer.sortingOrder = auroraRenderer != null ? auroraRenderer.sortingOrder + 1 : 4;
         if (stars)
         {
             renderer.renderMode = ParticleSystemRenderMode.Mesh;
@@ -262,13 +280,19 @@ public sealed class FeverPresentationController : MonoBehaviour
         return particles;
     }
 
-    private void SetBackgroundTint(Color tint)
+    private void UpdateAurora()
     {
-        if (background == null)
+        if (auroraRenderer == null || auroraCamera == null)
             return;
-        background.GetPropertyBlock(properties);
-        properties.SetColor(FeverTintId, tint);
-        background.SetPropertyBlock(properties);
+        float alpha = auroraOpacity * Mathf.SmoothStep(0f, 1f, auroraFade);
+        auroraRenderer.enabled = alpha > 0f;
+        if (alpha <= 0f)
+            return;
+
+        float height = auroraCamera.orthographicSize * 2f;
+        auroraRenderer.transform.localScale = new Vector3(height * auroraCamera.aspect, height, 1f);
+        auroraProperties.SetFloat(AuroraAlphaId, alpha);
+        auroraRenderer.SetPropertyBlock(auroraProperties);
     }
 
     private void StopPresentation()
@@ -280,8 +304,6 @@ public sealed class FeverPresentationController : MonoBehaviour
         foreach (SpriteRenderer ghost in afterimages)
             if (ghost != null)
                 ghost.enabled = false;
-        if (properties != null)
-            SetBackgroundTint(originalTint);
     }
 
     private void OnDisable()
@@ -289,12 +311,16 @@ public sealed class FeverPresentationController : MonoBehaviour
         if (eater != null)
             eater.ItemConsumed -= HandleConsumption;
         StopPresentation();
+        auroraFade = 0f;
+        UpdateAurora();
     }
 
     private void OnDestroy()
     {
         if (starMesh != null)
             Destroy(starMesh);
+        if (auroraMesh != null)
+            Destroy(auroraMesh);
     }
 
     private static Mesh CreateStarMesh()

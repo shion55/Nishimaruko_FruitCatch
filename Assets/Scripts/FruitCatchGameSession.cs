@@ -55,6 +55,7 @@ public sealed class FruitCatchGameSession : MonoBehaviour
     [SerializeField] private TMP_Text timerText;
     [SerializeField] private TMP_Text announcementText;
     [SerializeField] private GameObject resultsRoot;
+    [SerializeField] private ResultCelebration resultCelebration;
     [SerializeField] private FuriganaText resultTitle;
     [SerializeField] private FuriganaText scoreResult;
     [SerializeField] private FuriganaText fruitResult;
@@ -133,6 +134,7 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         leaving = true;
         StopAllCoroutines();
         EndGameplay();
+        FruitCatchAudioManager.StopGameAudioIfAvailable();
     }
 
     private void Awake()
@@ -151,17 +153,29 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         UpdateTimer(gameDuration, false);
     }
 
+    private void OnEnable()
+    {
+        if (itemSpawner != null)
+            itemSpawner.FeverStarted += PlayFeverBgm;
+    }
+
+    private void PlayFeverBgm()
+    {
+        if (IsPlaying && !leaving)
+            FruitCatchAudioManager.Instance.PlayFeverBgm();
+    }
+
     private IEnumerator Start()
     {
         if (gameManager != null)
             gameManager.ResetGameResults();
 
-        FruitCatchAudioManager.Instance.PlayStart();
         yield return ShowAnnouncement("スタート！", startColor, startDisplayDuration);
 
         ElapsedTime = 0f;
         IsPlaying = true;
-        FruitCatchAudioManager.Instance.PlayGameBgm();
+        FruitCatchAudioManager audio = FruitCatchAudioManager.Instance;
+        audio.PlayGameBgm();
         if (characterMovement != null)
             characterMovement.SetMovementEnabled(true);
         if (itemEffects != null)
@@ -177,7 +191,11 @@ public sealed class FruitCatchGameSession : MonoBehaviour
             ElapsedTime = Mathf.Min(gameDuration, ElapsedTime + Time.deltaTime);
             remaining = RemainingTime;
             if (itemSpawner != null)
+            {
+                if (remaining > 0f && itemSpawner.IsFever && audio.TryCompleteFeverBgm())
+                    itemSpawner.EndFever();
                 itemSpawner.AdvanceTo(ElapsedTime);
+            }
             bool warning = remaining <= warningStartSeconds;
             UpdateTimer(remaining, warning);
             if (remaining <= 0f)
@@ -186,15 +204,32 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         }
 
         EndGameplay();
-        FruitCatchAudioManager.Instance.FadeOutGameBgm();
+        audio.FadeOutGameBgm();
         RemoveFallingItems();
         UpdateTimer(0f, true);
-        FruitCatchAudioManager.Instance.PlayFinish();
+        audio.PlayFinish();
         yield return ShowAnnouncement("おわり！", finishColor, finishDisplayDuration);
-        ShowResults();
-        yield return new WaitForSecondsRealtime(resultDisplayDuration);
+        float resultsBgmDuration = audio.PlayResultsBgm();
+        if (resultsBgmDuration > 0f)
+        {
+            while (audio.IsResultsBgmActive && !audio.HasResultsBgmStarted)
+                yield return null;
+            if (!audio.IsResultsBgmActive)
+                yield break;
 
-        ChangeScene(preparationSceneName);
+            ShowResults(resultsBgmDuration * 0.9f);
+            while (audio.IsResultsBgmActive && !audio.HasResultsBgmEndedNaturally)
+                yield return null;
+            if (!audio.HasResultsBgmEndedNaturally)
+                yield break;
+        }
+        else
+        {
+            ShowResults(float.PositiveInfinity);
+            yield return new WaitForSecondsRealtime(resultDisplayDuration);
+        }
+
+        ChangeScene(preparationSceneName, StopForOperator);
     }
 
     private void BuildAnnouncementBanner()
@@ -248,14 +283,16 @@ public sealed class FruitCatchGameSession : MonoBehaviour
 
     private IEnumerator ShowAnnouncement(string message, Color color, float duration)
     {
+        bool isStart = message == "スタート！";
         if (announcementBanner == null)
         {
+            if (isStart)
+                FruitCatchAudioManager.Instance.PlayStart();
             yield return new WaitForSecondsRealtime(duration);
             yield break;
         }
 
         announcementText.text = message;
-        bool isStart = message == "スタート！";
         announcementText.color = Color.white;
         announcementText.enableVertexGradient = true;
         announcementText.colorGradient = isStart
@@ -270,6 +307,15 @@ public sealed class FruitCatchGameSession : MonoBehaviour
                 image.color = sparkleColor;
         }
         announcementBanner.gameObject.SetActive(true);
+        if (isStart)
+        {
+            announcementBanner.alpha = 1f;
+            announcementBanner.transform.localScale = Vector3.one;
+            announcementText.ForceMeshUpdate();
+            // Give the active banner a frame to render before starting the cue.
+            yield return null;
+            FruitCatchAudioManager.Instance.PlayStart();
+        }
         float elapsed = 0f;
         float actualDuration = Mathf.Max(0.1f, duration);
 
@@ -277,9 +323,9 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         {
             elapsed += Time.unscaledDeltaTime;
             float t = Mathf.Clamp01(elapsed / actualDuration);
-            float entrance = Mathf.Clamp01(elapsed / 0.34f);
+            float entrance = Mathf.Clamp01(elapsed / (isStart ? 0.2f : 0.34f));
             float scale = isStart
-                ? Mathf.Lerp(0.86f, 1f, entrance) + 0.1f * Mathf.Sin(entrance * Mathf.PI)
+                ? 1f + 0.06f * Mathf.Sin(entrance * Mathf.PI)
                 : Mathf.Lerp(1.18f, 1f, entrance) - 0.06f * Mathf.Sin(entrance * Mathf.PI);
             announcementBanner.transform.localScale = Vector3.one * scale;
             announcementBanner.alpha = 1f - Mathf.InverseLerp(0.88f, 1f, t);
@@ -317,8 +363,10 @@ public sealed class FruitCatchGameSession : MonoBehaviour
 
     private void OnDisable()
     {
-        EndGameplay();
-        FruitCatchAudioManager.StopGameAudioIfAvailable();
+        if (itemSpawner != null)
+            itemSpawner.FeverStarted -= PlayFeverBgm;
+        if (!leaving)
+            StopForOperator();
     }
 
     private void RemoveFallingItems()
@@ -327,12 +375,13 @@ public sealed class FruitCatchGameSession : MonoBehaviour
             Destroy(item.gameObject);
     }
 
-    private void ShowResults()
+    private void ShowResults(float animationBudget)
     {
         if (resultsRoot != null)
             resultsRoot.SetActive(true);
 
         int score = gameManager != null ? gameManager.Score : 0;
+        resultCelebration?.Play(score, animationBudget);
         int fruits = gameManager != null ? gameManager.FruitCount : 0;
         int bugs = gameManager != null ? gameManager.BugCount : 0;
         RectTransform resultCard = resultTitle != null ? resultTitle.transform.parent as RectTransform : null;
@@ -358,10 +407,7 @@ public sealed class FruitCatchGameSession : MonoBehaviour
 
         DecorateResultCounts(resultCard);
         if (isHighScore && resultCard != null)
-        {
-            TMP_FontAsset font = announcementText != null ? announcementText.font : timerText?.font;
-            StartCoroutine(PlayHighScoreDecoration(resultCard, font));
-        }
+            StartCoroutine(PlayHighScoreDecoration(resultCard, animationBudget));
     }
 
     private void DecorateResultCounts(RectTransform resultCard)
@@ -398,7 +444,7 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         text.lineSpacing = -10f;
     }
 
-    private IEnumerator PlayHighScoreDecoration(RectTransform resultCard, TMP_FontAsset font)
+    private IEnumerator PlayHighScoreDecoration(RectTransform resultCard, float animationBudget)
     {
         TMP_Text titleText = resultTitle != null ? resultTitle.GetComponent<TMP_Text>() : null;
         if (titleText != null)
@@ -416,7 +462,7 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         for (int i = 0; i < stars.Length; i++)
             stars[i] = CreateSparkle("Star_" + i, decoration, i % 2 == 0 ? 28f : 20f);
 
-        float duration = 1.1f;
+        float duration = Mathf.Min(1.1f, animationBudget);
         for (float elapsed = 0f; elapsed < duration; elapsed += Time.unscaledDeltaTime)
         {
             float t = Mathf.Clamp01(elapsed / duration);

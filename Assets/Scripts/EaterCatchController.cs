@@ -166,6 +166,8 @@ public class EaterCatchController : MonoBehaviour
         }
         else if (consumption.Category == ItemCategory.Bug)
         {
+            if (consumption.ScoreDelta < 0)
+                FruitCatchAudioManager.Instance.PlayBugEat();
             if (catchEffectPlayer != null)
                 catchEffectPlayer.PlayBugEffect();
         }

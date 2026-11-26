@@ -347,7 +347,7 @@ namespace FruitCatch.Preparation
             yield return FadeTo(1f);
 
             if (!string.IsNullOrWhiteSpace(gameplaySceneName))
-                FruitCatchGameSession.ChangeScene(gameplaySceneName);
+                FruitCatchGameSession.ChangeScene(gameplaySceneName, FruitCatchAudioManager.StopGameAudioIfAvailable);
             else
                 Debug.LogError("PreparationFlowController: ゲームシーン名が設定されていません。");
         }

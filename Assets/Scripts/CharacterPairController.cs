@@ -25,11 +25,14 @@ public class CharacterPairController : MonoBehaviour
     private readonly TemporaryEffectTimer chiliTimer = new TemporaryEffectTimer();
     private float swayTime;
     private float swayOffset;
+    private int chiliSwayFrame = -1;
     private int slideDirection;
     private bool movementEnabled = true;
     public bool IsChiliActive => chiliTimer.IsActive;
     public float ChiliRemainingTime => chiliTimer.Remaining;
     public bool IsSliding => slideDirection != 0;
+    public bool IsChiliSwaying => chiliSwayFrame == Time.frameCount && isActiveAndEnabled && movementEnabled &&
+        IsChiliActive && !IsSliding && chiliSwayAmplitude > 0f && chiliSwayFrequency > 0f;
     public event System.Action ReachedBananaWall;
     private float FeverMultiplier => fallingItemSpawner != null && fallingItemSpawner.IsFever
         ? Mathf.Max(1f, feverSpeedMultiplier) : 1f;
@@ -83,6 +86,7 @@ public class CharacterPairController : MonoBehaviour
         UpdateInputMovement();
         if (IsChiliActive)
         {
+            chiliSwayFrame = Time.frameCount;
             float before = transform.position.x;
             SetPositionX(before + Mathf.Sin(swayTime * chiliSwayFrequency * Mathf.PI * 2f) * chiliSwayAmplitude);
             swayOffset = transform.position.x - before;

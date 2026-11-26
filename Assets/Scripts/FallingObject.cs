@@ -92,7 +92,16 @@ public class FallingObject : MonoBehaviour
         VerticalSpeed = 0f;
     }
 
-    private float GetDescentSpeed()
+    internal float RelativePitchSlowdown
+    {
+        get
+        {
+            float normalSpeed = GetDescentSpeed(applyPitch: false);
+            return normalSpeed > 0f ? Mathf.Clamp01(1f - GetDescentSpeed() / normalSpeed) : 0f;
+        }
+    }
+
+    private float GetDescentSpeed(bool applyPitch = true)
     {
         float currentSpeed = fallSpeed;
 
@@ -103,14 +112,14 @@ public class FallingObject : MonoBehaviour
         switch (effectiveType)
         {
             case ItemType.Fruit:
-                currentSpeed *= FruitMultiplier;
+                if (applyPitch) currentSpeed *= FruitMultiplier;
                 currentSpeed = Mathf.Min(
                     currentSpeed, FruitMaxSpeed
                 );
                 break;
 
             case ItemType.Bug:
-                currentSpeed *= BugMultiplier;
+                if (applyPitch) currentSpeed *= BugMultiplier;
                 currentSpeed = Mathf.Min(
                     currentSpeed, BugMaxSpeed
                 );

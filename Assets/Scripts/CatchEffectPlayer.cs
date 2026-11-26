@@ -9,6 +9,8 @@ public class CatchEffectPlayer : MonoBehaviour
     [SerializeField] private GameObject bugEffectPrefab;
 
     [Header("Eating Particles")]
+    [SerializeField, Tooltip("捕食時の演出を表示します。フィーバー中の捕食で飛び散る星にも適用されます。")]
+    private bool eatingEffectsEnabled = true;
     [SerializeField] private ParticleSystem eatingParticles;
     [SerializeField, Min(1)] private int eatingParticleCount = 10;
 
@@ -37,9 +39,11 @@ public class CatchEffectPlayer : MonoBehaviour
     private GameObject activeGroup;
     private Coroutine activeCoroutine;
 
+    public bool EatingEffectsEnabled => eatingEffectsEnabled;
+
     public void PlayFruitEffect(Vector3 worldPosition)
     {
-        if (!isActiveAndEnabled)
+        if (!isActiveAndEnabled || !EatingEffectsEnabled)
             return;
 
         EmitParticles(eatingParticles, worldPosition, Quaternion.identity, eatingParticleCount);
@@ -48,7 +52,8 @@ public class CatchEffectPlayer : MonoBehaviour
 
     public void PlayBugEffect()
     {
-        SpawnEffects(bugEffectPrefab);
+        if (isActiveAndEnabled && EatingEffectsEnabled)
+            SpawnEffects(bugEffectPrefab);
     }
 
     public void PlayBounceEffect(Vector3 worldPosition, bool isLeft)
@@ -218,11 +223,23 @@ public class CatchEffectPlayer : MonoBehaviour
         }
     }
 
-    private void OnDisable()
+    private void LateUpdate()
+    {
+        if (!EatingEffectsEnabled && (activeGroup != null ||
+            (eatingParticles != null && eatingParticles.isPlaying)))
+            ClearEatingEffects();
+    }
+
+    private void ClearEatingEffects()
     {
         ClearEffects();
         if (eatingParticles != null)
             eatingParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+    }
+
+    private void OnDisable()
+    {
+        ClearEatingEffects();
         if (bounceParticles != null)
             bounceParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
     }

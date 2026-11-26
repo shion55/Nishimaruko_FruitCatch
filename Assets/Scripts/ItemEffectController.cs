@@ -18,6 +18,7 @@ public sealed class ItemEffectController : MonoBehaviour
     [SerializeField, Min(0f)] private float shakeAmplitude = 0.12f; // カメラの揺れ幅（units）。
 
     private BananaPeel peel;
+    private FruitCatchAudioManager audioManager;
     private bool running;
     private bool awaitingWall;
     private float shakeRemaining;
@@ -42,6 +43,7 @@ public sealed class ItemEffectController : MonoBehaviour
     public void BeginRun()
     {
         StopEffects();
+        audioManager = FruitCatchAudioManager.Instance;
         running = true;
     }
 
@@ -76,6 +78,11 @@ public sealed class ItemEffectController : MonoBehaviour
             return;
         awaitingWall = true;
         movement.StartBananaSlide(direction);
+        if (movement.IsSliding && movement.isActiveAndEnabled && audioManager != null)
+        {
+            audioManager.SetChiliSwayPlaying(false);
+            audioManager.PlayBananaSlide();
+        }
         Destroy(peel.gameObject);
         peel = null;
     }
@@ -84,12 +91,24 @@ public sealed class ItemEffectController : MonoBehaviour
     {
         if (!running || !awaitingWall) return;
         awaitingWall = false;
+        if (audioManager != null)
+        {
+            audioManager.StopBananaSlide();
+            audioManager.PlayWallImpact();
+        }
         shakeRemaining = shakeDuration;
         if (spawner != null) spawner.SpawnBananaBurst(burstFruitCount);
     }
 
     private void LateUpdate()
     {
+        if (running && audioManager != null)
+        {
+            audioManager.SetChiliSwayPlaying(movement != null && movement.IsChiliSwaying);
+            if (awaitingWall && (movement == null || !movement.IsSliding))
+                audioManager.StopBananaSlide();
+        }
+
         RestoreCamera();
         if (!running || gameplayCamera == null || shakeRemaining <= 0f) return;
         shakeRemaining = Mathf.Max(0f, shakeRemaining - Time.deltaTime);
@@ -107,6 +126,7 @@ public sealed class ItemEffectController : MonoBehaviour
     public void StopEffects()
     {
         running = awaitingWall = false;
+        if (audioManager != null) audioManager.StopItemEffectAudio();
         shakeRemaining = 0f;
         RestoreCamera();
         if (movement != null) movement.StopTemporaryEffects();

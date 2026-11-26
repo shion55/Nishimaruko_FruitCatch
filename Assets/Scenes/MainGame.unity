@@ -491,12 +491,12 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: -7
   m_MaskInteraction: 0
-  m_Sprite: {fileID: -8448609704130469531, guid: 4d4177a464f9e7b43bc85686da0e3304, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 123d79efbbd84d446a6f6510fc562d44, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 6, y: 3.38}
+  m_Size: {x: 48, y: 27}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
@@ -518,6 +518,7 @@ MonoBehaviour:
   voiceController: {fileID: 1162301305}
   emissionPoint: {fileID: 31974760}
   gameSession: {fileID: 223727264}
+  spawner: {fileID: 548926923}
   lifetime: 0.75
   waveSpeed: 6
   waveWidth: 0.18
@@ -526,7 +527,26 @@ MonoBehaviour:
   highPitchInterval: 0.12
   minimumStrength: 0.2
   ringColor: {r: 0.7, g: 0.95, b: 1, a: 0.12}
+  ripplePitchTintEnabled: 1
+  lowPitchRippleColor: {r: 0.12, g: 0.21, b: 0.47, a: 1}
+  highPitchRippleColor: {r: 1, g: 0.46, b: 0.12, a: 1}
+  ripplePitchTintOpacity: 0.22
   maxRadiusMultiplier: 3
+  airflowEnabled: 1
+  airflowMaterial: {fileID: 2100000, guid: 63afe01b148f4cd99fff5c8d0d9dd959, type: 2}
+  windColor: {r: 0.63, g: 0.92, b: 1, a: 1}
+  windAccentColor: {r: 0.94, g: 0.99, b: 1, a: 1}
+  windOpacity: 0.55
+  feverWindScale: 0.55
+  windDensity: 18.86
+  windMinimumEmissionRate: 24
+  windIntervalJitter: 0.35
+  windSpeed: 0.32
+  windHighPitchSpeedMultiplier: 2.027
+  windSpeedVariation: 0.25
+  windLength: 0.16
+  windWidth: 0.034
+  windFadeSeconds: 0.24
 --- !u!1 &223727262
 GameObject:
   m_ObjectHideFlags: 0
@@ -593,6 +613,7 @@ MonoBehaviour:
   timerText: {fileID: 1241247521}
   announcementText: {fileID: 581647226}
   resultsRoot: {fileID: 1068089022}
+  resultCelebration: {fileID: 2000000113}
   resultTitle: {fileID: 1646342987}
   scoreResult: {fileID: 787901744}
   fruitResult: {fileID: 677153019}
@@ -642,9 +663,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::FeverPresentationController
   spawner: {fileID: 548926923}
   eater: {fileID: 1162301305}
+  catchEffectPlayer: {fileID: 1162301307}
   eaterRenderer: {fileID: 1162301306}
   carrierRenderer: {fileID: 1038277770}
-  background: {fileID: 175575672}
+  auroraRenderer: {fileID: 2000000103}
   sparkleMaterial: {fileID: 2100000, guid: b74792186beb049e7b8429ea3e69e46e, type: 2}
   dustMaterial: {fileID: 2100000, guid: f3b34aa00d634497d825ada1a241f060, type: 2}
   goldColor: {r: 1, g: 0.76, b: 0.18, a: 1}
@@ -656,9 +678,9 @@ MonoBehaviour:
   trailInterval: 0.08
   afterimageAlpha: 0.18
   afterimageLifetime: 0.24
-  backgroundTint: {r: 1, g: 0.68, b: 0.2, a: 1}
-  backgroundStrength: 0.18
-  pulsePeriod: 1.4
+  auroraOpacity: 0.55
+  fadeInSeconds: 0.42
+  fadeOutSeconds: 0.9
 --- !u!4 &238349231
 Transform:
   m_ObjectHideFlags: 0
@@ -1057,7 +1079,8 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 2000000101}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &522553192
@@ -3087,6 +3110,7 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 2000000111}
   - {fileID: 696099581}
   m_Father: {fileID: 223727263}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -3192,9 +3216,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PitchFallSpeedController
   microphone: {fileID: 1834224848}
+  sharedSettings: {fileID: 11400000, guid: 4bce25842ef24f439e7f20b901f73ce2, type: 2}
   minPitchHz: 90
   maxPitchHz: 259
   maxFallSpeed: 8
+  applyToFallingObjects: 1
   minSpeedMultiplier: 0.25
   highPitchFaster: 0
   smoothTime: 0.15
@@ -3408,6 +3434,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CatchEffectPlayer
   fruitEffectPrefab: {fileID: 7257567317453261998, guid: 20081a32e94c9264697edb987cb9f9da, type: 3}
   bugEffectPrefab: {fileID: 496393266921703136, guid: 5eb30e2df984c7c4897c227135e33cd1, type: 3}
+  eatingEffectsEnabled: 0
   eatingParticles: {fileID: 804274108}
   eatingParticleCount: 10
   bounceParticles: {fileID: 1794013739}
@@ -4639,6 +4666,7 @@ MonoBehaviour:
   refreshButton: {fileID: 1503061119}
   measurementText: {fileID: 1873143400}
   gainMeter: {fileID: 59983169}
+  showPitch: 0
 --- !u!114 &1638611364
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5736,6 +5764,174 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1889952154}
   m_CullTransparentMesh: 1
+--- !u!1 &2000000100
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2000000101}
+  - component: {fileID: 2000000102}
+  - component: {fileID: 2000000103}
+  m_Layer: 0
+  m_Name: FeverAurora
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2000000101
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2000000100}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 10}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 519420032}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!33 &2000000102
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2000000100}
+  m_Mesh: {fileID: 0}
+--- !u!23 &2000000103
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2000000100}
+  m_Enabled: 0
+  m_CastShadows: 0
+  m_ReceiveShadows: 0
+  m_DynamicOccludee: 0
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 0
+  m_ReflectionProbeUsage: 0
+  m_RayTracingMode: 0
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: 1dc11c4c190449f998c0e45803eec20c, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: -5
+  m_MaskInteraction: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &2000000110
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2000000111}
+  - component: {fileID: 2000000112}
+  - component: {fileID: 2000000113}
+  m_Layer: 0
+  m_Name: ResultCelebration
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &2000000111
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2000000110}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1068089023}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 0, y: 0}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!222 &2000000112
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2000000110}
+  m_CullTransparentMesh: 1
+--- !u!114 &2000000113
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2000000110}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3d8b51bb37cad614d88f4930c762d9f7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ResultCelebration
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 0
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  mediumScore: 100
+  highScore: 200
+  lowCount: 12
+  mediumCount: 40
+  highCount: 78
+  opacity: 0.88
+  lifetime: 2.7
+  driftSpeed: 0.1
+  sizeScale: 1
+  starColor: {r: 1, g: 0.8784314, b: 0.4901961, a: 1}
+  roseColor: {r: 1, g: 0.5529412, b: 0.7254902, a: 1}
+  mintColor: {r: 0.5058824, g: 0.9215686, b: 0.8431373, a: 1}
+  lilacColor: {r: 0.7921569, g: 0.68235296, b: 1, a: 1}
 --- !u!1 &2019839179
 GameObject:
   m_ObjectHideFlags: 0

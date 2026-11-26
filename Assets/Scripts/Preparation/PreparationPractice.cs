@@ -17,6 +17,8 @@ namespace FruitCatch.Preparation
         [SerializeField] private Sprite openMouth;
         [SerializeField] private TMP_Text feedback;
         [SerializeField] private GameObject registrationRetry;
+        [SerializeField] private PitchFallSpeedController pitchController;
+        [SerializeField] private PreparationPitchMeter pitchMeter;
         [SerializeField, Range(0.01f, 0.2f)] private float goalTolerance = 0.045f;
         [SerializeField, Range(0.04f, 0.35f)] private float minimumTravel = 0.15f;
         [SerializeField, Min(0.1f)] private float retryHintSeconds = 4f;
@@ -64,6 +66,7 @@ namespace FruitCatch.Preparation
             if (rightGoal != null) rightGoal.enabled = true;
             if (eater != null) eater.sprite = closedMouth;
             if (fruit != null) fruit.enabled = false;
+            if (pitchMeter != null) pitchMeter.gameObject.SetActive(true);
             celebration.enabled = false;
             celebration.rectTransform.localScale = Vector3.one;
             celebration.rectTransform.localRotation = Quaternion.identity;
@@ -137,10 +140,18 @@ namespace FruitCatch.Preparation
         {
             bool mouthOpen = voice.IsVoiceDetected;
             eater.sprite = mouthOpen ? openMouth : closedMouth;
-            elapsed += dt;
+            // Keep the existing respawn delay on real time and slow only the falling fruit.
+            if (elapsed < 0f)
+            {
+                float wait = Mathf.Min(dt, -elapsed);
+                elapsed += wait;
+                dt -= wait;
+            }
+            if (elapsed >= 0f)
+                elapsed += dt * (pitchController != null ? pitchController.CurrentSpeedMultiplier : 1f);
             fruit.enabled = elapsed >= 0f;
             if (!fruit.enabled) return;
-            feedback.text = "くだものの下で、こえを出そう！";
+            feedback.text = "高いこえ・低いこえをためして、くだものをたべよう！";
             float fruitX = fruitStart.x + (attempt % 3 == 0 ? 0f : attempt % 3 == 1 ? -fruitRetryOffset : fruitRetryOffset);
             float mouthY = board.InverseTransformPoint(eater.rectTransform.position).y / board.rect.height + board.pivot.y;
             float progress = elapsed / fallSeconds;
@@ -163,6 +174,7 @@ namespace FruitCatch.Preparation
         private void Complete()
         {
             completed = true;
+            if (pitchMeter != null) pitchMeter.gameObject.SetActive(false);
             movement.SetMovementEnabled(false);
             celebration.enabled = true;
             SetAnchor(celebration.rectTransform, character.anchorMin.x, celebration.rectTransform.anchorMin.y);

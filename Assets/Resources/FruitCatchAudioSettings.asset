@@ -20,9 +20,12 @@ MonoBehaviour:
   transformationSoundVolume: 0.8
   transformationCompleteSound: {fileID: 8300000, guid: d6d1f6e42ff9e394794a8e6c4c577a23, type: 3}
   transformationCompleteSoundVolume: 0.669
-  startSound: {fileID: 8300000, guid: edce417d35d69f74da9d0451b9903747, type: 3}
+  movementPracticeSuccess: {fileID: 8300000, guid: f35c7b3bdb3d748469b01c428e2f1afd, type: 3}
+  fruitPracticeSuccess: {fileID: 8300000, guid: f35c7b3bdb3d748469b01c428e2f1afd, type: 3}
+  practiceSuccessVolume: 1
+  startSound: {fileID: 8300000, guid: ab8425aa9d5f1d54b9d19c7630f36146, type: 3}
   startSoundVolume: 1
-  finishSound: {fileID: 8300000, guid: edce417d35d69f74da9d0451b9903747, type: 3}
+  finishSound: {fileID: 8300000, guid: ab8425aa9d5f1d54b9d19c7630f36146, type: 3}
   finishSoundVolume: 1
   gameBgm: {fileID: 8300000, guid: e4dab5ac30e0bdd4581513ac83c274dd, type: 3}
   gameBgmVolume: 0.7
@@ -31,3 +34,19 @@ MonoBehaviour:
   fruitBounceSoundVolume: 0.719
   fruitEatSound: {fileID: 8300000, guid: 904a322de40b9a44f9e7bad2c2ea4eb3, type: 3}
   fruitEatSoundVolume: 0.773
+  feverBgm: {fileID: 8300000, guid: 29b41dbc2a85ead4dac79b7520345c94, type: 3}
+  feverBgmVolume: 0.7
+  feverBgmFadeOutDuration: 0.65
+  feverBgmInterruptedFadeOutDuration: 0.25
+  gameBgmResumeFadeInDuration: 0.5
+  resultsBgm: {fileID: 8300000, guid: 08631f3385271584dbf990c59e9327ea, type: 3}
+  resultsBgmVolume: 0.7
+  wallImpactSound: {fileID: 8300000, guid: ebc139970795e5c438df95b7a5cefe22, type: 3}
+  wallImpactSoundVolume: 1
+  chiliSwaySound: {fileID: 8300000, guid: 0d372aa69ea553a47a94e0f55a72a806, type: 3}
+  chiliSwaySoundVolume: 1
+  chiliSwaySoundPitch: 1
+  bananaSlideSound: {fileID: 8300000, guid: a5d752044764afe458dafbcfd17cdb58, type: 3}
+  bananaSlideSoundVolume: 1
+  bugEatSound: {fileID: 8300000, guid: 000210236b6618e4cb6f4e1b3cb4cfdc, type: 3}
+  bugEatSoundVolume: 1

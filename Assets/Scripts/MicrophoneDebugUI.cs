@@ -13,6 +13,7 @@ public class MicrophoneDebugUI : MonoBehaviour
     [SerializeField] private Button refreshButton;
     [SerializeField] private TMP_Text measurementText;
     [SerializeField] private Slider gainMeter;
+    [SerializeField] private bool showPitch = true;
 
     private const string PreferenceKey = "FruitCatch.SelectedMicrophone";
     private readonly List<string> deviceNames = new List<string>();
@@ -50,14 +51,16 @@ public class MicrophoneDebugUI : MonoBehaviour
         if (measurementText != null)
         {
             string state = microphone.IsCapturing ? "Active" : "No input";
-            string pitch = microphone.PitchHz > 0f
-                ? microphone.PitchHz.ToString("F1") + " Hz"
-                : "---";
-            measurementText.text =
+            string measurement =
                 "Microphone: " + state + "\n" +
                 "Gain: " + microphone.Gain.ToString("F3") +
-                " (" + microphone.GainDb.ToString("F1") + " dBFS)\n" +
-                "Pitch: " + pitch;
+                " (" + microphone.GainDb.ToString("F1") + " dBFS)";
+            if (showPitch)
+            {
+                string pitch = microphone.PitchHz > 0f ? microphone.PitchHz.ToString("F1") + " Hz" : "---";
+                measurement += "\nPitch: " + pitch;
+            }
+            measurementText.text = measurement;
         }
 
         if (gainMeter != null)

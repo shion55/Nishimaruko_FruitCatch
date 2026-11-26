@@ -74,6 +74,7 @@ public class FallingItemSpawner : MonoBehaviour
     private float nextSpecialTime;
     private float nextFeverTime;
     private bool fever;
+    private bool feverUsed;
     private int placementIndex;
     private float previousX;
 
@@ -86,8 +87,24 @@ public class FallingItemSpawner : MonoBehaviour
     public int ActiveItemCount { get { PruneItems(); return activeItems.Count; } }
     public int MaxActiveItems => maxActiveItems;
     public event Action<CatchableItem> ItemSpawned;
+    public event Action FeverStarted;
 
     private SpawnPhaseSettings CurrentPhase => phases[CurrentPhaseIndex];
+
+    internal float GetAveragePitchSlowdown()
+    {
+        float sum = 0f;
+        int count = 0;
+        foreach (CatchableItem item in activeItems)
+        {
+            if (item == null || item.IsConsumed ||
+                !item.TryGetComponent(out FallingObject falling) || !falling.isActiveAndEnabled || falling.IsRising)
+                continue;
+            sum += falling.RelativePitchSlowdown;
+            count++;
+        }
+        return count > 0 ? sum / count : 0f;
+    }
 
     public void BeginRun(float duration)
     {
@@ -178,7 +195,7 @@ public class FallingItemSpawner : MonoBehaviour
             return;
 
         // フィーバー果物の枠は取得まで存続し、常に1個だけを落とす。
-        if (ElapsedTime >= nextFeverTime && ElapsedTime >= nextEffectTime && !HasItem(ItemKind.FeverFruit))
+        if (!feverUsed && ElapsedTime >= nextFeverTime && ElapsedTime >= nextEffectTime && !HasItem(ItemKind.FeverFruit))
         {
             if (SpawnItem(feverItemPrefab, SpawnPlacement.Easy) != null)
                 RecordSpecial(ItemKind.FeverFruit);
@@ -309,18 +326,26 @@ public class FallingItemSpawner : MonoBehaviour
 
     public void StartFever()
     {
-        if (!SpawningEnabled || IsFever || ElapsedTime >= runDuration)
+        if (!SpawningEnabled || feverUsed || ElapsedTime >= runDuration)
             return;
-        fever = true;
-        slots.Clear();
+        fever = feverUsed = true;
         nextFruitTime = ElapsedTime;
+        FeverStarted?.Invoke();
+    }
+
+    public void EndFever()
+    {
+        if (!IsFever)
+            return;
+        fever = false;
+        nextFruitTime = ElapsedTime + GetFruitInterval();
     }
 
     public void SetSpawningEnabled(bool value)
     {
         if (value) { BeginRun(runDuration); return; }
         SpawningEnabled = false;
-        fever = false;
+        fever = feverUsed = false;
         slots.Clear();
         foreach (CatchableItem item in activeItems)
         {
