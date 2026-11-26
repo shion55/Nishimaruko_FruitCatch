@@ -259,6 +259,20 @@ namespace FruitCatch.Preparation
             metricsStartedAt = now;
         }
 
+        public static void ClearRegistration()
+        {
+            try
+            {
+                using var client = new UdpClient();
+                byte[] command = Encoding.ASCII.GetBytes("CLEAR");
+                client.Send(command, command.Length, "127.0.0.1", 5006);
+            }
+            catch (SocketException exception)
+            {
+                Debug.LogWarning($"[FruitCatch tracking] CLEAR failed: {exception.Message}");
+            }
+        }
+
         private bool SendCommand(string command)
         {
             try

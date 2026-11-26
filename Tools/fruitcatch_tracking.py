@@ -87,10 +87,12 @@ class TargetLock:
         self.seen_at = now
         self.vx = self.vy = 0.0
         self.missed = False
+        self.ambiguous = False
         self.candidate = None
         self.confirmations = 0
 
     def select(self, observations, now):
+        self.ambiguous = False
         dt = max(0.001, now - self.seen_at)
         predicted_x = self.target.x + self.vx * min(0.25, dt)
         predicted_y = self.target.y + self.vy * min(0.25, dt)
@@ -111,7 +113,11 @@ class TargetLock:
                            if item.shape and self.target.shape else 0.0)
             ranked.append((distance / gate + size_error * 0.9 + shape_error * 0.16, item))
         ranked.sort(key=lambda entry: entry[0])
-        if not ranked or (len(ranked) > 1 and ranked[1][0] - ranked[0][0] < 0.28):
+        self.ambiguous = len(ranked) > 1 and (
+            ranked[1][0] - ranked[0][0] < 0.28 or
+            math.hypot(ranked[1][1].x - ranked[0][1].x,
+                       ranked[1][1].y - ranked[0][1].y) < min(0.065, self.target.size * 0.65))
+        if not ranked or self.ambiguous:
             self.mark_missing()
             return None
         item = ranked[0][1]

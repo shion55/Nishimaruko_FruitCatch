@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import json
 import os
 from pathlib import Path
@@ -23,6 +24,8 @@ DIST_ROOT = TRACKING_ROOT.parent
 LOG_ROOT = DIST_ROOT / "Logs"
 TRACKER_LOG = LOG_ROOT / "tracker.log"
 GAME_LOG = LOG_ROOT / "unity.log"
+STARTUP_TIMEOUT = 45
+DEFAULT_MONITOR = "自動"
 MODE_LABELS = {"pose": "骨格追跡（両肩）", "face": "顔追跡"}
 FORMAT_LABELS = {"AUTO": "自動", "DEFAULT": "ドライバー標準", "MJPG": "MJPG", "YUY2": "YUY2", "UYVY": "UYVY"}
 
@@ -55,7 +58,7 @@ class DetectionCheck:
 
     def run(self):
         try:
-            tracker.ensure_models()
+            tracker.ensure_models(download=False)
             detector = tracker.create_face_detector()
             sequence = 0
             with tracker.PoseDetector() as pose:
@@ -85,6 +88,7 @@ class Launcher:
         self.start_deadline = 0.0
         self.next_health_check = 0.0
         self.token = ""
+        self.preview_mode = None
         self.pending = None
         self.closing = False
         self.selection = []
@@ -96,6 +100,7 @@ class Launcher:
         self.fps = tk.StringVar()
         self.video_format = tk.StringVar()
         self.tracking_mode = tk.StringVar()
+        self.monitor = tk.StringVar()
         self.detection = tk.BooleanVar()
         self.status = tk.StringVar(value="カメラを選択してください。")
         self.metrics = tk.StringVar(value="撮影解像度・実測FPS —")
@@ -133,6 +138,12 @@ class Launcher:
             if variable != self.tracking_mode:
                 field.bind("<<ComboboxSelected>>", self.settings_changed)
             self.controls.append(field)
+        row = len(self.controls)
+        ttk.Label(self.details, text="Unity 表示先").grid(row=row, column=0, sticky="w")
+        self.monitor_field = ttk.Combobox(self.details, textvariable=self.monitor, state="readonly")
+        self.monitor_field.grid(row=row, column=1, sticky="w", padx=(12, 0), pady=2)
+        self.monitor_field.configure(postcommand=self.refresh_monitors)
+        self.controls.append(self.monitor_field)
         self.save_button = ttk.Button(ui, text="設定を保存", command=self.save)
         self.save_button.grid(row=5, column=0, sticky="w", pady=(6, 4))
         self.start_button = ttk.Button(ui, text="ゲーム起動", command=self.start)
@@ -150,6 +161,9 @@ class Launcher:
         self.fps.set(str(self.config["fps"]))
         self.video_format.set(FORMAT_LABELS[self.config["video_format"]])
         self.tracking_mode.set(MODE_LABELS[self.config["tracking_mode"]])
+        saved_monitor = self.config["monitor"]
+        self.monitor.set(str(saved_monitor) if saved_monitor > 0 else DEFAULT_MONITOR)
+        self.refresh_monitors()
         self.rescan(auto_select=not config_error)
         if config_error:
             self.error.set(config_error)
@@ -169,7 +183,9 @@ class Launcher:
         self.device.set("")
         self.devices["values"] = ()
         try:
+            started = time.monotonic()
             self.selection = camera_api.discover_cameras(config["camera_backend"])
+            camera_api.log(f"[startup] preview enumeration: {time.monotonic() - started:.2f}s")
             self.devices["values"] = [f"{cam.name}  [{cam.index}]" for cam in self.selection]
             if auto_select:
                 chosen = camera_api.resolve_camera(config, self.selection)
@@ -179,6 +195,16 @@ class Launcher:
             self.status.set("カメラを選択してください。")
             self.error.set(f"{exc} カメラを再選択してください。")
             camera_api.log(f"[launcher] {exc}")
+
+    def refresh_monitors(self):
+        # Unity uses a 1-based index among the active monitors.
+        count = ctypes.windll.user32.GetSystemMetrics(80)  # SM_CMONITORS
+        choices = [DEFAULT_MONITOR, *(str(index) for index in range(1, count + 1))]
+        current = self.monitor.get()
+        if current and current not in choices:
+            choices.append(current)
+        self.monitor_field.configure(values=choices)
+        return count
 
     def get_config(self):
         index = self.devices.current()
@@ -192,6 +218,7 @@ class Launcher:
         config["video_format"] = next(key for key, value in FORMAT_LABELS.items() if value == self.video_format.get())
         config["tracking_mode"] = next(key for key, value in MODE_LABELS.items()
                                        if value == self.tracking_mode.get())
+        config["monitor"] = int(self.monitor.get()) if self.monitor.get().isdigit() else 0
         return config
 
     def stop_preview(self):
@@ -233,6 +260,12 @@ class Launcher:
             self.error.set("ゲーム本体 FruitCatch.exe が見つかりません。")
             return
         if self.save():
+            camera = self.camera
+            self.preview_mode = None
+            if camera and not camera.stop_event.is_set():
+                with camera.condition:
+                    if camera.latest() is not None:
+                        self.preview_mode = camera.mode
             self.stop_preview()
             self.pending = "game"
             self.set_busy(True)
@@ -249,13 +282,17 @@ class Launcher:
         env = os.environ.copy()
         env.update(PYTHONUTF8="1", PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1",
                    FRUITCATCH_LAUNCH_TOKEN=self.token)
+        env.pop("FRUITCATCH_PREVIEW_MODE", None)
+        if self.preview_mode:
+            env["FRUITCATCH_PREVIEW_MODE"] = json.dumps(self.preview_mode)
+        camera_api.log(f"[startup] starting tracker; preview mode={self.preview_mode}")
         python = Path(sys.executable).with_name("python.exe")
         with TRACKER_LOG.open("wb") as output:
             self.tracker_process = subprocess.Popen(
                 [str(python), "-X", "utf8", "-u", "face_tracker_registered.py"], cwd=TRACKING_ROOT,
                 env=env, stdin=subprocess.PIPE, stdout=output, stderr=subprocess.STDOUT,
                 creationflags=subprocess.CREATE_NO_WINDOW)
-        self.start_deadline = time.monotonic() + 45
+        self.start_deadline = time.monotonic() + STARTUP_TIMEOUT
         self.status.set("ゲーム用カメラと判定モデルを準備しています…")
 
     def stop_tracker(self):
@@ -298,7 +335,14 @@ class Launcher:
         health = self.read_health()
         if health.get("token") == self.token:
             if health.get("ready"):
-                self.game = subprocess.Popen([str(DIST_ROOT / "FruitCatch.exe"), "-logFile", str(GAME_LOG)], cwd=DIST_ROOT)
+                args = [str(DIST_ROOT / "FruitCatch.exe"), "-logFile", str(GAME_LOG)]
+                monitor = int(self.monitor.get()) if self.monitor.get().isdigit() else 0
+                if 0 < monitor <= self.refresh_monitors():
+                    args.extend(("-monitor", str(monitor)))
+                elif monitor > 0:
+                    camera_api.log(f"[startup] monitor {monitor} disconnected; using Unity default")
+                camera_api.log(f"[startup] tracker ready in {time.monotonic() - (self.start_deadline - STARTUP_TIMEOUT):.2f}s")
+                self.game = subprocess.Popen(args, cwd=DIST_ROOT)
                 self.status.set("ゲーム実行中")
                 self.error.set("")
                 return
@@ -370,6 +414,7 @@ class Launcher:
             if self.check and not self.check.thread.is_alive() and self.check.stop.is_set():
                 self.check = None
             if self.camera and self.camera.stop_event.is_set() and not self.camera.thread.is_alive():
+                camera_api.log(f"[camera] preview released in {time.monotonic() - self.camera_stop_started:.2f}s")
                 self.camera = None
                 self.camera_lease.close()
                 self.camera_lease = None

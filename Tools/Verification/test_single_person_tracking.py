@@ -139,29 +139,27 @@ class CameraTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             camera.resolve_camera(dict(saved, camera_path=""), [one, two])
 
-    def test_gray_and_invalid_formats_rejected_but_known_packed_yuv_converts(self):
-        with self.assertRaises(ValueError):
-            camera.color_frame(np.zeros((10, 20), np.uint8), "Y800")
-        self.assertFalse(camera.has_color(np.ones((10, 20, 3), np.uint8) * 100))
+    def test_gray_frames_convert_and_invalid_formats_are_rejected(self):
+        gray = np.zeros((10, 20), np.uint8)
+        self.assertEqual(camera.color_frame(gray, "Y800").shape, (10, 20, 3))
         raw = np.array([[[90, 255], [90, 60]]], np.uint8)
-        self.assertTrue(camera.has_color(camera.color_frame(raw, "YUY2")))
+        self.assertEqual(camera.color_frame(raw, "YUY2").shape, (1, 2, 3))
         with self.assertRaises(ValueError):
             camera.color_frame(raw, "UNKNOWN")
         gray_jpeg = cv2.imencode(".jpg", np.full((16, 16), 80, np.uint8))[1].reshape(1, -1)
-        with self.assertRaises(ValueError):
-            camera.color_frame(gray_jpeg, "MJPG")
+        self.assertEqual(camera.color_frame(gray_jpeg, "MJPG").shape, (16, 16, 3))
 
-    def test_auto_falls_back_from_monochrome_mjpg_to_color_driver_format(self):
-        mono = Mock()
-        mono.get.return_value = cv2.VideoWriter_fourcc(*"MJPG")
-        mono.read.return_value = True, np.ones((4, 4, 3), np.uint8) * 100
+    def test_auto_falls_back_from_corrupt_mjpg_to_driver_format(self):
+        corrupt = Mock()
+        corrupt.get.return_value = cv2.VideoWriter_fourcc(*"MJPG")
+        corrupt.read.return_value = True, np.array([[255, 216, 0, 0]], np.uint8)
         color = Mock()
         color.get.return_value = cv2.VideoWriter_fourcc(*"YUY2")
         color.read.return_value = True, np.tile(np.array([30, 60, 90], np.uint8), (4, 4, 1))
-        with patch.object(camera.cv2, "VideoCapture", side_effect=[mono, color]):
+        with patch.object(camera.cv2, "VideoCapture", side_effect=[corrupt, color]):
             chosen = camera.configure_camera(0, 700, "test", camera.DEFAULTS)
         self.assertIs(chosen, color)
-        mono.release.assert_called_once()
+        corrupt.release.assert_called_once()
         color.release.assert_not_called()
 
     def test_latest_frame_drops_backlog_and_reopens_same_factory_after_failure(self):
@@ -316,6 +314,7 @@ class LauncherLifecycleTests(unittest.TestCase):
         tracker_process.stdin.closed = False
         launcher.start_deadline = time.monotonic() + 10
         launcher.token = "owner"
+        launcher.monitor = Mock(get=Mock(return_value=gui.DEFAULT_MONITOR))
         launcher.read_health = Mock(side_effect=[{}, {"token": "owner", "ready": True}])
         launcher.status = Mock()
         launcher.error = Mock()

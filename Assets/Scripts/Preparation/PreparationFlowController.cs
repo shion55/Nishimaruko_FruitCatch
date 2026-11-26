@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.SceneManagement;
 
 namespace FruitCatch.Preparation
 {
@@ -14,7 +13,9 @@ namespace FruitCatch.Preparation
         HandsRaised,
         FaceAligned,
         VoiceDetected,
-        Timed
+        Timed,
+        MovementPractice,
+        FruitPractice
     }
 
     [Serializable]
@@ -62,6 +63,8 @@ namespace FruitCatch.Preparation
         private bool handsRaised;
         private bool faceAligned;
         private bool voiceDetected;
+        private bool practiceComplete;
+        private int resumePracticeIndex = -1;
         private bool transitioning;
         private bool simulatedCameraAvailable;
         private readonly Dictionary<PreparationStep, PreparationCountdown> stepCountdowns = new();
@@ -69,6 +72,7 @@ namespace FruitCatch.Preparation
 
         public int CurrentStepIndex => currentStepIndex;
         public bool DevelopmentMode => developmentMode;
+        private bool DebugEnabled => developmentMode && (Application.isEditor || Debug.isDebugBuild);
         public bool IsTransitioning => transitioning;
         public float CurrentSignalProgress => steps.Count > 0 && currentStepIndex < steps.Count
             ? Mathf.Clamp01(signalHoldTime / Mathf.Max(0.001f, steps[currentStepIndex].RequiredHoldSeconds)) : 0f;
@@ -113,18 +117,51 @@ namespace FruitCatch.Preparation
 
         private void Update()
         {
+            if (leaving || FruitCatchGameSession.HandleOperatorInput(gameObject.scene.name, null, StopForOperator))
+                return;
+
             HandleDevelopmentInput();
             UpdateSignalProgress();
             UpdateDebugOverlay();
+        }
+
+        private bool leaving;
+
+        private void StopForOperator()
+        {
+            leaving = true;
+            transitioning = true;
+            StopAllCoroutines();
+            if (TryGetComponent(out PreparationPythonBridge bridge))
+                bridge.enabled = false;
+            FruitCatchAudioManager.StopGameAudioIfAvailable();
         }
 
         public void ReportHandsRaised(bool detected) => handsRaised = detected;
         public void ReportFaceAligned(bool detected) => faceAligned = detected;
         public void ReportVoiceDetected(bool detected) => voiceDetected = detected;
 
+        public void ReportPracticeComplete(GameObject panel)
+        {
+            if (!transitioning && panel == CurrentPanel && IsPractice)
+                practiceComplete = true;
+        }
+
+        private bool IsPractice => CurrentRequiredSignal == PreparationSignal.MovementPractice ||
+                                   CurrentRequiredSignal == PreparationSignal.FruitPractice;
+
+        public void RetryRegistration()
+        {
+            if (!IsPractice || transitioning || practiceComplete) return;
+            int faceIndex = steps.FindIndex(step => step.RequiredSignal == PreparationSignal.FaceAligned);
+            if (faceIndex < 0) return;
+            resumePracticeIndex = currentStepIndex;
+            StartCoroutine(ChangeStepRoutine(faceIndex));
+        }
+
         public void AdvanceForDebug()
         {
-            if (!developmentMode || transitioning)
+            if (!DebugEnabled || transitioning)
                 return;
 
             StartCoroutine(AdvanceRoutine());
@@ -132,21 +169,24 @@ namespace FruitCatch.Preparation
 
         public void GoBackForDebug()
         {
-            if (!developmentMode || transitioning || currentStepIndex <= 0)
+            if (!DebugEnabled || transitioning || currentStepIndex <= 0)
                 return;
 
+            resumePracticeIndex = -1;
             StartCoroutine(ChangeStepRoutine(currentStepIndex - 1));
         }
 
         public void RestartForDebug()
         {
-            if (!developmentMode || transitioning)
+            if (!DebugEnabled || transitioning)
                 return;
 
             StopAllCoroutines();
             transitioning = false;
             currentStepIndex = 0;
             signalHoldTime = 0f;
+            resumePracticeIndex = -1;
+            ClearDetectionSignals();
             ShowOnlyCurrentPanel();
             StartMainMenuBgm();
 
@@ -162,13 +202,13 @@ namespace FruitCatch.Preparation
 
         private void HandleDevelopmentInput()
         {
-            if (!developmentMode)
+            if (!DebugEnabled)
                 return;
 
             Keyboard keyboard = Keyboard.current;
 
             if ((keyboard != null && keyboard.spaceKey.wasPressedThisFrame) ||
-                MouseDebugInput.LeftButtonPressed)
+                (MouseDebugInput.LeftButtonPressed && !IsPractice && CurrentRequiredSignal != PreparationSignal.VoiceDetected))
                 AdvanceForDebug();
 
             if ((keyboard != null && keyboard.backspaceKey.wasPressedThisFrame) ||
@@ -199,7 +239,7 @@ namespace FruitCatch.Preparation
             signalHoldTime += Time.deltaTime;
             UpdateStepCountdown(step);
             if (signalHoldTime >= step.RequiredHoldSeconds)
-                StartCoroutine(AdvanceRoutine());
+                StartCoroutine(AdvanceRoutine(true));
         }
 
         private bool IsSignalActive(PreparationSignal signal)
@@ -214,20 +254,36 @@ namespace FruitCatch.Preparation
                     return voiceDetected;
                 case PreparationSignal.Timed:
                     return true;
+                case PreparationSignal.MovementPractice:
+                case PreparationSignal.FruitPractice:
+                    return practiceComplete;
                 default:
                     return false;
             }
         }
 
-        private IEnumerator AdvanceRoutine()
+        private IEnumerator AdvanceRoutine(bool signalConfirmed = false)
         {
             if (transitioning || steps.Count == 0)
                 yield break;
 
             signalHoldTime = 0f;
+            int nextIndex = currentStepIndex + 1;
+
+            if (signalConfirmed && CurrentRequiredSignal == PreparationSignal.VoiceDetected &&
+                TryGetComponent<PreparationVoiceDetector>(out var voice))
+            {
+                transitioning = true;
+                yield return voice.ShowRecognition();
+            }
 
             if (CurrentRequiredSignal == PreparationSignal.FaceAligned && CurrentPanel != null)
             {
+                if (resumePracticeIndex >= 0)
+                {
+                    nextIndex = resumePracticeIndex;
+                    resumePracticeIndex = -1;
+                }
                 PreparationFacePresentation presentation = CurrentPanel.GetComponentInChildren<PreparationFacePresentation>();
                 if (presentation != null)
                 {
@@ -242,7 +298,7 @@ namespace FruitCatch.Preparation
                 yield break;
             }
 
-            yield return ChangeStepRoutine(currentStepIndex + 1);
+            yield return ChangeStepRoutine(nextIndex);
         }
 
         private IEnumerator ChangeStepRoutine(int nextIndex)
@@ -291,7 +347,7 @@ namespace FruitCatch.Preparation
             yield return FadeTo(1f);
 
             if (!string.IsNullOrWhiteSpace(gameplaySceneName))
-                SceneManager.LoadScene(gameplaySceneName);
+                FruitCatchGameSession.ChangeScene(gameplaySceneName);
             else
                 Debug.LogError("PreparationFlowController: ゲームシーン名が設定されていません。");
         }
@@ -331,10 +387,12 @@ namespace FruitCatch.Preparation
         {
             for (int i = 0; i < steps.Count; i++)
             {
-                if (steps[i].Panel != null)
-                    steps[i].Panel.SetActive(i == currentStepIndex);
+                if (i != currentStepIndex && steps[i].Panel != null)
+                    steps[i].Panel.SetActive(false);
             }
 
+            // Release the previous practice panel's UDP port before opening the next one.
+            CurrentPanel?.SetActive(true);
             if (currentStepIndex < steps.Count)
                 UpdateStepCountdown(steps[currentStepIndex]);
         }
@@ -354,6 +412,7 @@ namespace FruitCatch.Preparation
             handsRaised = false;
             faceAligned = false;
             voiceDetected = false;
+            practiceComplete = false;
         }
 
         private void SetSimulatedCameraAvailable(bool available)
@@ -366,9 +425,9 @@ namespace FruitCatch.Preparation
         private void UpdateDebugOverlay()
         {
             if (debugOverlayRoot != null)
-                debugOverlayRoot.SetActive(developmentMode && showDebugOverlay);
+                debugOverlayRoot.SetActive(DebugEnabled && showDebugOverlay);
 
-            if (debugText == null || !developmentMode || !showDebugOverlay)
+            if (debugText == null || !DebugEnabled || !showDebugOverlay)
                 return;
 
             string stepName = steps.Count > 0 && currentStepIndex < steps.Count

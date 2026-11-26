@@ -3,6 +3,7 @@ using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using FruitCatch.Preparation;
 
@@ -75,6 +76,65 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         new ScoreMessageTier(200, "くだものマスター！")
     };
 
+    private static int lastTransitionFrame = -1;
+    private bool leaving;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetTransitionFrame() => lastTransitionFrame = -1;
+
+    public static bool HandleOperatorInput(string preparationScene, string replayScene, System.Action stop)
+    {
+        Keyboard keyboard = Keyboard.current;
+        if (keyboard == null || lastTransitionFrame == Time.frameCount)
+            return false;
+
+#if !UNITY_EDITOR
+        if (keyboard.escapeKey.wasPressedThisFrame)
+        {
+            lastTransitionFrame = Time.frameCount;
+            stop();
+            Application.Quit();
+            return true;
+        }
+#endif
+        if (keyboard.f1Key.wasPressedThisFrame && !string.IsNullOrWhiteSpace(preparationScene))
+        {
+            return ChangeScene(preparationScene, () =>
+            {
+                stop();
+                PreparationPythonBridge.ClearRegistration();
+            });
+        }
+        if (keyboard.f2Key.wasPressedThisFrame && !string.IsNullOrWhiteSpace(replayScene))
+            return ChangeScene(replayScene, stop);
+
+        return false;
+    }
+
+    public static bool ChangeScene(string scene, System.Action stop = null)
+    {
+        if (lastTransitionFrame == Time.frameCount || string.IsNullOrWhiteSpace(scene))
+            return false;
+
+        lastTransitionFrame = Time.frameCount;
+        stop?.Invoke();
+        SceneManager.LoadScene(scene);
+        return true;
+    }
+
+    private void Update()
+    {
+        if (!leaving)
+            HandleOperatorInput(preparationSceneName, gameObject.scene.name, StopForOperator);
+    }
+
+    private void StopForOperator()
+    {
+        leaving = true;
+        StopAllCoroutines();
+        EndGameplay();
+    }
+
     private void Awake()
     {
         if (itemSpawner != null)
@@ -134,8 +194,7 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         ShowResults();
         yield return new WaitForSecondsRealtime(resultDisplayDuration);
 
-        if (!string.IsNullOrWhiteSpace(preparationSceneName))
-            SceneManager.LoadScene(preparationSceneName);
+        ChangeScene(preparationSceneName);
     }
 
     private void BuildAnnouncementBanner()

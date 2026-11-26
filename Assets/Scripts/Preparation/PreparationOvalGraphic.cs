@@ -14,12 +14,20 @@ namespace FruitCatch.Preparation
         public RectTransform cutout;
         public bool solidRectangle;
         public bool rectangular;
+        public bool star;
         internal bool SmoothEdges { get; set; }
 
         protected override void OnPopulateMesh(VertexHelper vh)
         {
             vh.Clear();
             Rect rect = GetPixelAdjustedRect();
+            if (star)
+            {
+                float starRadius = Mathf.Min(rect.width, rect.height) * 0.5f;
+                AddStar(vh, rect.center, starRadius, new Color(color.r * .70f, color.g * .64f, color.b * .64f, color.a));
+                AddStar(vh, rect.center, starRadius * .83f, color);
+                return;
+            }
             if (solidRectangle || (rectangular && filled && cutout == null))
             {
                 AddRectangle(vh, rect, color);
@@ -75,6 +83,19 @@ namespace FruitCatch.Preparation
                         AddBand(vh, rect.center, u, v, solidInner,
                             Vector2.Max(inner - featherOffset, Vector2.zero), opaque, clear);
                 }
+            }
+        }
+
+        private static void AddStar(VertexHelper vh, Vector2 center, float radius, Color32 tint)
+        {
+            int start = vh.currentVertCount;
+            vh.AddVert(center, tint, Vector2.zero);
+            for (int i = 0; i < 10; i++)
+            {
+                float angle = Mathf.PI * .5f - i * Mathf.PI / 5f;
+                float pointRadius = radius * (i % 2 == 0 ? 1f : .48f);
+                vh.AddVert(center + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * pointRadius, tint, Vector2.zero);
+                vh.AddTriangle(start, start + i + 1, start + (i + 1) % 10 + 1);
             }
         }
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import math
 import os
 from pathlib import Path
@@ -16,9 +17,8 @@ import urllib.request
 import cv2
 import numpy as np
 
-from fruitcatch_camera import (COMMAND_PORT, PREVIEW_PORT, LatestCamera, camera_config_for,
-                               configure_camera, discover_cameras, exclusive_socket,
-                               load_camera_config, log, resolve_camera, select_camera)
+from fruitcatch_camera import (COMMAND_PORT, PREVIEW_PORT, LatestCamera,
+                               configure_camera, exclusive_socket, load_camera_config, log, select_camera)
 from fruitcatch_preview import (PreviewServer, PreviewStatus, PreviewStream,
                                 make_preview_handler, mirrored, resize_to_max_width)
 from fruitcatch_tracking import (Observation, TargetLock, associate_body, collect_bodies,
@@ -34,6 +34,9 @@ FACE_ANALYSIS_WIDTH = 960
 POSE_ANALYSIS_WIDTH = 640
 HAND_FPS = 10
 TRACKING_FPS = 20
+IDENTITY_INTERVAL = 0.2
+IDENTITY_MATCH = 0.42
+IDENTITY_MARGIN = 0.04
 # ====== 両手上げ判定 ======
 HAND_RAISE_SHOULDER_MARGIN = 0.03  # 手首が肩より画面高の3%以上上
 MIN_POSE_VISIBILITY = 0.55
@@ -49,6 +52,7 @@ MAX_FACE_WIDTH_RATIO = 0.49
 MODEL_DIR = Path(__file__).resolve().parent / "face_models"
 FACE_DETECTOR_PATH = MODEL_DIR / "face_detection_yunet_2023mar.onnx"
 POSE_PATH = MODEL_DIR / "pose_landmarker_lite.task"
+SFACE_PATH = MODEL_DIR / "face_recognition_sface_2021dec.onnx"
 MODEL_URLS = {
     FACE_DETECTOR_PATH:
         "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx",
@@ -61,6 +65,7 @@ MODEL_URLS = {
 class Face:
     rect: tuple[int, int, int, int]
     center: tuple[float, float]
+    detection: np.ndarray | None = None
 
 
 @dataclass
@@ -79,6 +84,7 @@ class TrackingState:
     missing_since: float | None = None
     hold_face: Observation | None = None
     target: TargetLock | None = None
+    descriptor: np.ndarray | None = None
 
     def reset_hold(self, hint: str) -> None:
         self.hold_start = None
@@ -96,15 +102,18 @@ class TrackingState:
         self.auto_register = False
         self.active = False
         self.target = None
+        self.descriptor = None
         self.reset_hold("WAITING")
         self.last_status = "IDLE"
 
 
-def ensure_models() -> None:
-    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+def ensure_models(*, download=True) -> None:
     for target, url in MODEL_URLS.items():
         if target.is_file() and target.stat().st_size > 100_000:
             continue
+        if not download:
+            raise RuntimeError(f"Tracking model missing or incomplete: {target}")
+        MODEL_DIR.mkdir(parents=True, exist_ok=True)
         print(f"モデルのダウンロード: {target.name}")
         temp = target.with_name(target.name + ".download")
         try:
@@ -121,7 +130,7 @@ def ensure_models() -> None:
 
 
 def collect_faces(detections: np.ndarray | None, width: int, height: int) -> list[Face]:
-    """YuNetの矩形だけを使用する。本人照合用の特徴抽出は不要。"""
+    """Keep the YuNet landmarks for SFace alignment when needed."""
     faces = []
     if detections is None:
         return faces
@@ -138,6 +147,7 @@ def collect_faces(detections: np.ndarray | None, width: int, height: int) -> lis
         faces.append(Face(
             rect=(x0, y0, w, h),
             center=((x0 + x1) / 2.0, (y0 + y1) / 2.0),
+            detection=row,
         ))
     return faces
 
@@ -265,6 +275,7 @@ def process_registration(
     status_sock: socket.socket,
     match=None,
     captured_at: float | None = None,
+    recognizer=None,
 ) -> int | None:
     now = time.monotonic() if captured_at is None else captured_at
     candidates = list(enumerate(faces))
@@ -310,6 +321,11 @@ def process_registration(
         return None
 
     if not state.auto_register:
+        if recognizer is not None:
+            state.descriptor = face_descriptor(recognizer, frame, face)
+            if state.descriptor is None:
+                state.reset_hold("NO_FACE")
+                return None
         if body_or_face is not None:
             state.target = TargetLock(body_or_face, now)
         complete_registration(state, status_sock)
@@ -338,6 +354,11 @@ def process_registration(
     state.hint = "HOLD"
     send_status(status_sock, state, "HOLD")
     if state.progress >= 1.0:
+        if recognizer is not None:
+            state.descriptor = face_descriptor(recognizer, frame, face)
+            if state.descriptor is None:
+                state.reset_hold("NO_FACE")
+                return None
         if body_or_face is not None:
             state.target = TargetLock(body_or_face, now)
         complete_registration(state, status_sock)
@@ -378,14 +399,45 @@ def create_face_detector():
     return cv2.FaceDetectorYN.create(str(FACE_DETECTOR_PATH), "", (320, 320), FACE_CONFIDENCE, 0.3, 100)
 
 
-def track(camera, stream, command_sock, status_sock, position_sock, detector, pose_detector, mode, stop):
+def face_descriptor(recognizer, frame, face):
+    if face.detection is None or len(face.detection) < 15 or not np.isfinite(face.detection).all():
+        return None
+    try:
+        aligned = recognizer.alignCrop(frame, face.detection)
+        descriptor = recognizer.feature(aligned).reshape(-1)
+    except cv2.error:
+        return None
+    norm = float(np.linalg.norm(descriptor))
+    return descriptor / norm if np.isfinite(norm) and norm > 1e-9 else None
+
+
+def identify_face(recognizer, profile, frame, faces):
+    ranked = []
+    for index, face in enumerate(faces):
+        feature = face_descriptor(recognizer, frame, face)
+        if feature is not None:
+            ranked.append((float(np.dot(feature, profile)), index))
+    ranked.sort(reverse=True)
+    if not ranked or ranked[0][0] < IDENTITY_MATCH:
+        return None
+    if len(ranked) > 1 and ranked[0][0] - ranked[1][0] < IDENTITY_MARGIN:
+        return None
+    return ranked[0][1]
+
+
+def track(camera, stream, command_sock, status_sock, position_sock, detector, pose_detector, mode, stop, recognizer=None):
     state = TrackingState()
     sequence = 0
     last_inference_at = float("-inf")
     hands_raised_at = None
     last_report = time.monotonic()
+    last_identity_at = float("-inf")
+    verify_identity = False
+    last_issue = None
     while not stop.is_set():
         if read_commands(command_sock, state, status_sock):
+            verify_identity = False
+            last_identity_at = float("-inf")
             stream.publish(PreviewStatus(state.registration_id, state.progress, state.hint), reset=True)
         preview_requested = stream.is_requested()
         if not (preview_requested or state.pending_register or state.active):
@@ -400,6 +452,11 @@ def track(camera, stream, command_sock, status_sock, position_sock, detector, po
         if captured is None:
             if state.active and state.target and time.monotonic() - state.target.seen_at > 0.35:
                 state.target.mark_missing()
+                verify_identity = state.descriptor is not None
+                issue = "camera error" if camera.error else "no fresh camera frame"
+                if issue != last_issue:
+                    log(f"[tracking] {issue}: {camera.error or ''}")
+                    last_issue = issue
                 send_status(status_sock, state, "LOST")
             if camera.error and state.pending_register:
                 state.reset_hold("NO_FACE")
@@ -412,6 +469,11 @@ def track(camera, stream, command_sock, status_sock, position_sock, detector, po
         height, width = analysis.shape[:2]
         faces = detect_faces(detector, analysis) if need_face else []
         poses = pose_detector.detect(analysis, captured_at) if need_pose and (not state.pending_register or faces) else []
+        if time.monotonic() - captured_at >= 0.5:
+            if last_issue != "inference result too old":
+                log(f"[tracking] inference result too old: {(time.monotonic() - captured_at) * 1000:.0f}ms")
+                last_issue = "inference result too old"
+            continue
         bodies = collect_bodies(poses, height / width)
         if preview_requested and has_raised_both_hands(poses):
             hands_raised_at = captured_at
@@ -426,19 +488,55 @@ def track(camera, stream, command_sock, status_sock, position_sock, detector, po
                     return None
                 return body.shoulders if mode == "pose" else face_observation(faces[index], width)
 
-            chosen = process_registration(state, analysis, faces, status_sock, match, captured_at)
+            chosen = process_registration(state, analysis, faces, status_sock, match, captured_at, recognizer)
             if chosen is not None:
                 x = state.target.target.x
                 snapshot = frame
         elif state.active:
             candidates = ([body.shoulders for body in bodies] if mode == "pose" else
                           [face_observation(face, width) for face in faces])
-            x = state.target.select(candidates, captured_at)
+            can_identify = state.descriptor is not None and recognizer is not None
+            target = state.target
+            if can_identify and captured_at - target.seen_at > 0.35:
+                verify_identity = True
+            if not verify_identity:
+                x = target.select(candidates, captured_at)
+                if can_identify and (target.ambiguous or (x is None and len(candidates) > 1)):
+                    verify_identity = True
+            issue = "ambiguous candidates" if target.ambiguous else "no matching geometry"
+            if verify_identity:
+                issue = "waiting for identity confirmation"
+                if captured_at - last_identity_at >= IDENTITY_INTERVAL:
+                    last_identity_at = captured_at
+                    if mode == "pose":
+                        face_image = mirrored(resize_to_max_width(frame, FACE_ANALYSIS_WIDTH))
+                        face_candidates = detect_faces(detector, face_image)
+                    else:
+                        face_image, face_candidates = analysis, faces
+                    index = identify_face(recognizer, state.descriptor, face_image, face_candidates)
+                    if index is not None:
+                        face_width = face_image.shape[1]
+                        if mode == "pose":
+                            body = associate_body(index, face_candidates, bodies, face_width)
+                            observation = body.shoulders if body is not None else None
+                        else:
+                            observation = face_observation(face_candidates[index], face_width)
+                        if observation is not None:
+                            state.target = TargetLock(observation, captured_at)
+                            verify_identity = False
+                            x = observation.x
             send_status(status_sock, state, "LOST" if x is None else "TRACKING")
+            if x is not None:
+                issue = None if time.monotonic() - captured_at < 0.5 else "inference result too old"
+            if issue != last_issue:
+                log(f"[tracking] {issue or 'position output resumed'}")
+                last_issue = issue
 
-        # Keep the latest valid live position; Unity's existing timeout handles gaps.
         if x is not None and time.monotonic() - captured_at < 0.5:
-            position_sock.sendto(f"{x:.4f}".encode("ascii"), (UNITY_IP, UNITY_POSITION_PORT))
+            try:
+                position_sock.sendto(f"{x:.4f}".encode("ascii"), (UNITY_IP, UNITY_POSITION_PORT))
+            except OSError as exc:
+                log(f"[tracking] UDP position send failed: {exc}")
 
         stream.publish(PreviewStatus(state.registration_id, state.progress, state.hint, hands_raised_at), snapshot)
         now = time.monotonic()
@@ -461,13 +559,15 @@ def run():
         shutdown_done = threading.Event()
         threading.Thread(target=watch_launcher, name="FruitCatchParent", daemon=True).start()
 
+    startup = time.monotonic()
     config = load_camera_config()
-    selected = resolve_camera(config, discover_cameras(config["camera_backend"]))
-    config = camera_config_for(config, selected)
+    preferred = json.loads(os.environ.get("FRUITCATCH_PREVIEW_MODE", "null"))
 
     def open_selected(stop_event):
+        started = time.monotonic()
         index, backend, name = select_camera(config)
-        return configure_camera(index, backend, name, config, stop_event)
+        log(f"[startup] camera enumeration: {time.monotonic() - started:.2f}s")
+        return configure_camera(index, backend, name, config, stop_event, preferred)
 
     with (exclusive_socket(COMMAND_PORT, socket.SOCK_DGRAM) as commands,
           socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as status,
@@ -476,28 +576,32 @@ def run():
         camera = LatestCamera(open_selected)
         stream = PreviewStream(camera)
         try:
-            # Bind both ports and prepare models before attempting camera access.
             with PreviewServer((UNITY_IP, PREVIEW_PORT), make_preview_handler(stream)) as server:
-                ensure_models()
+                camera.start()
+                model_start = time.monotonic()
+                ensure_models(download=not os.environ.get("FRUITCATCH_LAUNCH_TOKEN"))
                 detector = create_face_detector()
+                if not SFACE_PATH.is_file():
+                    raise RuntimeError(f"SFace model missing from distribution: {SFACE_PATH}")
+                recognizer = cv2.FaceRecognizerSF.create(str(SFACE_PATH), "")
                 with PoseDetector() as pose_detector:
-                    camera.start()
+                    log(f"[startup] models ready: {time.monotonic() - model_start:.2f}s")
                     stream.thread.start()
                     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
                     server_thread.start()
-                    log(f"[pipeline] HTTP {PREVIEW_PORT}; UDP {COMMAND_PORT}/{UNITY_POSITION_PORT}/{UNITY_STATUS_PORT}; mode={config['tracking_mode']}")
+                    log(f"[startup] HTTP ready: {time.monotonic() - startup:.2f}s; mode={config['tracking_mode']}")
                     try:
                         track(camera, stream, commands, status, position, detector, pose_detector,
-                              config["tracking_mode"], stop)
+                              config["tracking_mode"], stop, recognizer)
                     finally:
                         stream.stop_event.set()
-                        camera.close()
-                        stream.thread.join(timeout=2)
                         server.shutdown()
+                        stream.thread.join(timeout=2)
                         server_thread.join(timeout=2)
         except OSError as exc:
             raise RuntimeError(f"トラッカーの通信またはポート {PREVIEW_PORT} を確認してください: {exc}") from exc
         finally:
+            camera.close()
             if os.environ.get("FRUITCATCH_LAUNCH_TOKEN"):
                 shutdown_done.set()
 

@@ -14,6 +14,9 @@ public sealed class FruitCatchAudioSettings : ScriptableObject
     [SerializeField, Range(0f, 1f)] private float transformationSoundVolume = 0.8f;
     [SerializeField] private AudioClip transformationCompleteSound;
     [SerializeField, Range(0f, 1f)] private float transformationCompleteSoundVolume = 1f;
+    [SerializeField] private AudioClip movementPracticeSuccess;
+    [SerializeField] private AudioClip fruitPracticeSuccess;
+    [SerializeField, Range(0f, 1f)] private float practiceSuccessVolume = 1f;
 
     [Header("Gameplay")]
     [SerializeField] private AudioClip startSound;
@@ -36,6 +39,9 @@ public sealed class FruitCatchAudioSettings : ScriptableObject
     public float TransformationSoundVolume => transformationSoundVolume;
     public AudioClip TransformationCompleteSound => transformationCompleteSound;
     public float TransformationCompleteSoundVolume => transformationCompleteSoundVolume;
+    public AudioClip MovementPracticeSuccess => movementPracticeSuccess != null ? movementPracticeSuccess : countdownSound;
+    public AudioClip FruitPracticeSuccess => fruitPracticeSuccess;
+    public float PracticeSuccessVolume => practiceSuccessVolume;
     public AudioClip StartSound => startSound;
     public float StartSoundVolume => startSoundVolume;
     public AudioClip FinishSound => finishSound;
