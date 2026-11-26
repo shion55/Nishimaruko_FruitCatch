@@ -27,7 +27,7 @@ FOURCC_ALIASES = {"YUY2": ("YUY2", "YUYV", "YUNV"), "MJPG": ("MJPG", "JPEG")}
 DEFAULTS = {
     "camera_name": "", "camera_index": 0, "camera_path": "", "camera_backend": cv2.CAP_DSHOW,
     "use_max_resolution": False, "width": 1280, "height": 720, "fps": 30,
-    "video_format": "AUTO", "tracking_mode": "pose",
+    "video_format": "AUTO", "tracking_mode": "pose", "monitor": 0,
 }
 
 
@@ -44,7 +44,7 @@ def load_camera_config(path=CAMERA_CONFIG_PATH):
         if not isinstance(loaded, dict):
             raise ValueError("最上位はJSONオブジェクトにしてください")
         config.update(loaded)
-        for key in ("width", "height", "fps", "camera_index", "camera_backend"):
+        for key in ("width", "height", "fps", "camera_index", "camera_backend", "monitor"):
             config[key] = int(config[key])
         if (min(config["width"], config["height"], config["fps"]) <= 0 or
                 config["camera_index"] < 0 or config["video_format"] not in FORMATS or
@@ -135,15 +135,24 @@ def color_frame(raw, fourcc):
             decoded = cv2.imdecode(data, cv2.IMREAD_UNCHANGED)
             if decoded is not None and decoded.ndim == 3 and decoded.shape[2] == 3:
                 return decoded
+            if decoded is not None and decoded.ndim == 2:
+                return cv2.cvtColor(decoded, cv2.COLOR_GRAY2BGR)
+            raise ValueError("Invalid MJPG frame")
+    # Packed byte streams have one row. A decoded grayscale image has real image rows.
+    if raw.shape[0] > 1 and raw.shape[1] > 1 and (
+            raw.ndim == 2 or (raw.ndim == 3 and raw.shape[2] == 1)):
+        return cv2.cvtColor(raw, cv2.COLOR_GRAY2BGR)
     raise ValueError(f"カラーに変換できない形式: {frame_description(raw, fourcc)}")
 
 
-def has_color(frame):
-    sample = frame[::max(1, frame.shape[0] // 48), ::max(1, frame.shape[1] // 64)]
-    return bool(np.any(np.ptp(sample, axis=2) > 2))
-
-
-def configure_camera(index, backend, name, config, stop_event=None):
+def configure_camera(index, backend, name, config, stop_event=None, preferred=None, require_mode=False):
+    if preferred is not None:
+        try:
+            log(f"[camera] Trying preview mode: {preferred}")
+            return configure_camera(index, backend, name, dict(config, **preferred,
+                                    use_max_resolution=False), stop_event, require_mode=True)
+        except RuntimeError as exc:
+            log(f"[camera] Preview mode failed; trying configured modes: {exc}")
     use_max = config["use_max_resolution"]
     resolutions = MAX_RESOLUTIONS if use_max else ((config["width"], config["height"]),)
     requested_format = config["video_format"]
@@ -154,17 +163,20 @@ def configure_camera(index, backend, name, config, stop_event=None):
         for video_format in formats:
             if stop_event is not None and stop_event.is_set():
                 raise RuntimeError("カメラを停止しました")
+            started = time.monotonic()
+            log(f"[camera] opening {name} {width}x{height}/{config['fps']}fps/{video_format}")
             cap = cv2.VideoCapture(index, backend)
+            log(f"[camera] open {width}x{height}/{video_format}: {time.monotonic() - started:.2f}s")
             keep = False
             try:
                 if not cap.isOpened():
                     raise ValueError("カメラを開けません (他のアプリが使用していないか確認してください)")
                 cap.set(cv2.CAP_PROP_CONVERT_RGB, 1)
                 cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
                 if video_format != "DEFAULT":
                     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*video_format))
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
                 cap.set(cv2.CAP_PROP_FPS, config["fps"])
                 for attempt in range(8):
                     if stop_event is not None and stop_event.is_set():
@@ -185,20 +197,23 @@ def configure_camera(index, backend, name, config, stop_event=None):
                     except ValueError as exc:
                         last_error = str(exc)
                         continue
-                    if has_color(frame):
-                        actual_height, actual_width = frame.shape[:2]
-                        area = actual_width * actual_height
-                        if use_max and (actual_width, actual_height) != (width, height):
-                            if best is None or area > best[0]:
-                                best = area, width, height, video_format
-                            break
-                        if use_max and best is not None and best[0] > area:
-                            break
-                        log(f"[camera] カラー確認済み {actual_width}x{actual_height} "
-                            f"ドライバーFPS={cap.get(cv2.CAP_PROP_FPS):.1f} {description}")
-                        keep = True
-                        return cap
-                    last_error = f"色差が確認できません: {description}"
+                    actual_height, actual_width = frame.shape[:2]
+                    actual_fps = cap.get(cv2.CAP_PROP_FPS)
+                    if require_mode and ((actual_width, actual_height) != (width, height) or
+                                         (actual_fps > 0 and abs(actual_fps - config["fps"]) > 0.5) or
+                                         (video_format != "DEFAULT" and not fourcc)):
+                        raise ValueError(f"Preview mode did not negotiate: {description} fps={actual_fps}")
+                    area = actual_width * actual_height
+                    if use_max and (actual_width, actual_height) != (width, height):
+                        if best is None or area > best[0]:
+                            best = area, width, height, video_format
+                        break
+                    if use_max and best is not None and best[0] > area:
+                        break
+                    log(f"[camera] frame validated in {time.monotonic() - started:.2f}s; "
+                        f"{actual_width}x{actual_height} driver FPS={actual_fps:.1f} {description}")
+                    keep = True
+                    return cap
                 else:
                     raise ValueError(last_error)
             except (ValueError, cv2.error) as exc:
@@ -213,7 +228,7 @@ def configure_camera(index, backend, name, config, stop_event=None):
         _, width, height, mode = best
         return configure_camera(index, backend, name, dict(config, use_max_resolution=False,
                                 width=width, height=height, video_format=mode), stop_event)
-    raise RuntimeError(f"{name}のカラー映像を取得できません。色のある物を映し、映像形式や接続を確認してください。{last_error}")
+    raise RuntimeError(f"{name}: {last_error}")
 
 
 class Rate:
@@ -249,6 +264,7 @@ class LatestCamera:
         self.captured_at = 0.0
         self.error = None
         self.fourcc = ""
+        self.mode = None
         self.rate = Rate()
         self.thread = threading.Thread(target=self._capture, name="FruitCatchCamera", daemon=True)
 
@@ -261,7 +277,8 @@ class LatestCamera:
             try:
                 cap = self.open_camera(self.stop_event)
                 fourcc = fourcc_name(cap)
-                last_color = time.monotonic()
+                fps = cap.get(cv2.CAP_PROP_FPS)
+                first_frame = True
                 failures = 0
                 while not self.stop_event.is_set():
                     ok, raw = cap.read()
@@ -274,16 +291,24 @@ class LatestCamera:
                         continue
                     failures = 0
                     frame = color_frame(raw, fourcc)
-                    if has_color(frame):
-                        last_color = captured_at
-                    elif captured_at - last_color > 3:
-                        raise RuntimeError(f"カラー映像が途切れました: {frame_description(raw, fourcc)}")
+                    if first_frame:
+                        height, width = frame.shape[:2]
+                        video_format = next((key for key in FORMATS[1:-1]
+                                             if fourcc in FOURCC_ALIASES.get(key, (key,))), None)
+                        if video_format is None:
+                            video_format = fourcc if len(fourcc) == 4 and fourcc.isprintable() else "DEFAULT"
+                        mode = dict(width=width, height=height, video_format=video_format)
+                        if np.isfinite(fps) and fps > 0:
+                            mode["fps"] = fps
+                        log(f"[camera] First live frame: {mode}")
+                        first_frame = False
                     self.rate.tick(captured_at)
                     with self.condition:
                         if self.error:
                             log("[camera] カラー映像の取得が復旧しました")
                         self.error = None
                         self.fourcc = fourcc
+                        self.mode = mode
                         self.frame = frame
                         self.captured_at = captured_at
                         self.sequence += 1
@@ -293,6 +318,7 @@ class LatestCamera:
                     log(f"[camera] {exc}。同じカメラを再接続します。")
                     with self.condition:
                         self.frame = None
+                        self.mode = None
                         self.error = str(exc)
                         self.condition.notify_all()
             finally:

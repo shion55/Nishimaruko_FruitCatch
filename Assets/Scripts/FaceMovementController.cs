@@ -22,11 +22,14 @@ public class FaceMovementController : MonoBehaviour
     private float faceX = 0.5f;
     private float lastReceivedTime;
     private bool hasReceivedFace;
+    private bool timedOut;
 
     public bool movefacetoggle = true;
     void OnEnable()
     {
         hasReceivedFace = false;
+        timedOut = false;
+        lastReceivedTime = Time.unscaledTime;
 
         try
         {
@@ -66,9 +69,18 @@ public class FaceMovementController : MonoBehaviour
             ) && !float.IsNaN(x) && !float.IsInfinity(x))
             {
                 faceX = Mathf.Clamp01(x);
-                lastReceivedTime = Time.time;
+                lastReceivedTime = Time.unscaledTime;
+                if (timedOut)
+                    Debug.Log("[FruitCatch tracking] UDP positions resumed.");
+                timedOut = false;
                 hasReceivedFace = true;
             }
+        }
+
+        if (!timedOut && !movefacetoggle && Time.unscaledTime - lastReceivedTime > trackingTimeout)
+        {
+            timedOut = true;
+            Debug.LogWarning("[FruitCatch tracking] No recent UDP position on port " + port);
         }
     }
 
@@ -76,7 +88,7 @@ public class FaceMovementController : MonoBehaviour
     {
         normalizedX = 0.5f;
         if (!isActiveAndEnabled || movefacetoggle || !hasReceivedFace ||
-            Time.time - lastReceivedTime > Mathf.Max(0f, trackingTimeout))
+            Time.unscaledTime - lastReceivedTime > Mathf.Max(0f, trackingTimeout))
             return false;
 
         normalizedX = Mathf.InverseLerp(

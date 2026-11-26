@@ -60,7 +60,8 @@ public static class FruitCatchWindowsBuild
         string config = Path.Combine(tracking, "camera_config.json");
         if (!File.Exists(config))
             CopyFile("Tools/camera_config.json", config);
-        foreach (string model in new[] { "face_detection_yunet_2023mar.onnx", "pose_landmarker_lite.task", "LICENSE-YuNet.txt" })
+        foreach (string model in new[] { "face_detection_yunet_2023mar.onnx", "pose_landmarker_lite.task",
+                     "face_recognition_sface_2021dec.onnx", "LICENSE-YuNet.txt" })
             CopyFile(Path.Combine("Tools/face_models", model), Path.Combine(tracking, "face_models", model));
     }
 

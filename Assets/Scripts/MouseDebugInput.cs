@@ -24,7 +24,7 @@ public static class MouseDebugInput
             {
                 lastToggleFrame = Time.frameCount;
                 if (Application.isFocused && Keyboard.current != null &&
-                    Keyboard.current.f2Key.wasPressedThisFrame)
+                    Keyboard.current.f3Key.wasPressedThisFrame)
                 {
                     enabled = !enabled;
                 }

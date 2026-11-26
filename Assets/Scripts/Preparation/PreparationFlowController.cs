@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.SceneManagement;
 
 namespace FruitCatch.Preparation
 {
@@ -118,9 +117,24 @@ namespace FruitCatch.Preparation
 
         private void Update()
         {
+            if (leaving || FruitCatchGameSession.HandleOperatorInput(gameObject.scene.name, null, StopForOperator))
+                return;
+
             HandleDevelopmentInput();
             UpdateSignalProgress();
             UpdateDebugOverlay();
+        }
+
+        private bool leaving;
+
+        private void StopForOperator()
+        {
+            leaving = true;
+            transitioning = true;
+            StopAllCoroutines();
+            if (TryGetComponent(out PreparationPythonBridge bridge))
+                bridge.enabled = false;
+            FruitCatchAudioManager.StopGameAudioIfAvailable();
         }
 
         public void ReportHandsRaised(bool detected) => handsRaised = detected;
@@ -333,7 +347,7 @@ namespace FruitCatch.Preparation
             yield return FadeTo(1f);
 
             if (!string.IsNullOrWhiteSpace(gameplaySceneName))
-                SceneManager.LoadScene(gameplaySceneName);
+                FruitCatchGameSession.ChangeScene(gameplaySceneName);
             else
                 Debug.LogError("PreparationFlowController: ゲームシーン名が設定されていません。");
         }
@@ -373,10 +387,12 @@ namespace FruitCatch.Preparation
         {
             for (int i = 0; i < steps.Count; i++)
             {
-                if (steps[i].Panel != null)
-                    steps[i].Panel.SetActive(i == currentStepIndex);
+                if (i != currentStepIndex && steps[i].Panel != null)
+                    steps[i].Panel.SetActive(false);
             }
 
+            // Release the previous practice panel's UDP port before opening the next one.
+            CurrentPanel?.SetActive(true);
             if (currentStepIndex < steps.Count)
                 UpdateStepCountdown(steps[currentStepIndex]);
         }
