@@ -1,7 +1,12 @@
 {
   "camera_name": "",
   "camera_index": 0,
-  "use_max_resolution": true,
-  "width": 1920,
-  "height": 1080
+  "camera_path": "",
+  "camera_backend": 700,
+  "use_max_resolution": false,
+  "width": 1280,
+  "height": 720,
+  "fps": 30,
+  "video_format": "AUTO",
+  "tracking_mode": "pose"
 }

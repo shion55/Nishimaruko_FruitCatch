@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System;
 using System.IO;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
@@ -11,7 +12,12 @@ public static class FruitCatchWindowsBuild
     [MenuItem("FruitCatch/Windows配布版をビルド")]
     public static void Build()
     {
-        Directory.CreateDirectory(OutputRoot);
+        string output = OutputRoot;
+        string[] args = Environment.GetCommandLineArgs();
+        int outputArgument = Array.IndexOf(args, "-fruitCatchOutput");
+        if (Application.isBatchMode && outputArgument >= 0 && outputArgument + 1 < args.Length)
+            output = args[outputArgument + 1];
+        Directory.CreateDirectory(output);
         string[] scenes =
         {
             "Assets/Scenes/Preparation.unity",
@@ -20,39 +26,42 @@ public static class FruitCatchWindowsBuild
 
         BuildReport report = BuildPipeline.BuildPlayer(
             scenes,
-            Path.Combine(OutputRoot, "FruitCatch.exe"),
+            Path.Combine(output, "FruitCatch.exe"),
             BuildTarget.StandaloneWindows64,
             BuildOptions.None);
 
         if (report.summary.result != BuildResult.Succeeded)
         {
             Debug.LogError($"FruitCatch Windowsビルドに失敗しました: {report.summary.result}");
+            if (Application.isBatchMode)
+                EditorApplication.Exit(1);
             return;
         }
 
-        CopyDistributionFiles();
+        CopyDistributionFiles(output);
         AssetDatabase.Refresh();
-        Debug.Log($"FruitCatch配布版を作成しました: {Path.GetFullPath(OutputRoot)}");
-        EditorUtility.RevealInFinder(Path.GetFullPath(OutputRoot));
+        Debug.Log($"FruitCatch配布版を作成しました: {Path.GetFullPath(output)}");
+        if (!Application.isBatchMode)
+            EditorUtility.RevealInFinder(Path.GetFullPath(output));
     }
 
-    private static void CopyDistributionFiles()
+    private static void CopyDistributionFiles(string output)
     {
         string distribution = "Tools/Distribution";
-        CopyFile(Path.Combine(distribution, "Setup-FruitCatch.ps1"), Path.Combine(OutputRoot, "Setup-FruitCatch.ps1"));
-        CopyFile(Path.Combine(distribution, "Start-FruitCatch.ps1"), Path.Combine(OutputRoot, "Start-FruitCatch.ps1"));
-        CopyFile(Path.Combine(distribution, "Setup FruitCatch.bat"), Path.Combine(OutputRoot, "Setup FruitCatch.bat"));
-        CopyFile(Path.Combine(distribution, "Start FruitCatch.bat"), Path.Combine(OutputRoot, "Start FruitCatch.bat"));
-        CopyFile(Path.Combine(distribution, "はじめに.txt"), Path.Combine(OutputRoot, "はじめに.txt"));
+        foreach (string file in new[] { "Setup-FruitCatch.ps1", "Setup FruitCatch.bat", "Start FruitCatch.bat", "はじめに.txt" })
+            CopyFile(Path.Combine(distribution, file), Path.Combine(output, file));
 
-        string tracking = Path.Combine(OutputRoot, "Tracking");
+        string tracking = Path.Combine(output, "Tracking");
         Directory.CreateDirectory(tracking);
         Directory.CreateDirectory(Path.Combine(tracking, "face_models"));
-        CopyFile("Tools/face_tracker_registered.py", Path.Combine(tracking, "face_tracker_registered.py"));
-        CopyFile("Tools/requirements.txt", Path.Combine(tracking, "requirements.txt"));
-        CopyFile("Tools/camera_config.json", Path.Combine(tracking, "camera_config.json"));
-        foreach (string model in Directory.GetFiles("Tools/face_models"))
-            CopyFile(model, Path.Combine(tracking, "face_models", Path.GetFileName(model)));
+        foreach (string file in new[] { "face_tracker_registered.py", "fruitcatch_camera.py", "fruitcatch_tracking.py",
+                     "fruitcatch_preview.py", "fruitcatch_launcher.py", "requirements.txt" })
+            CopyFile(Path.Combine("Tools", file), Path.Combine(tracking, file));
+        string config = Path.Combine(tracking, "camera_config.json");
+        if (!File.Exists(config))
+            CopyFile("Tools/camera_config.json", config);
+        foreach (string model in new[] { "face_detection_yunet_2023mar.onnx", "pose_landmarker_lite.task", "LICENSE-YuNet.txt" })
+            CopyFile(Path.Combine("Tools/face_models", model), Path.Combine(tracking, "face_models", model));
     }
 
     private static void CopyFile(string source, string destination)

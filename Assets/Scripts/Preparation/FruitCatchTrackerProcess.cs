@@ -8,7 +8,7 @@ namespace FruitCatch.Preparation
 {
     /// <summary>
     /// カメラ判定プログラムをUnityと一緒に起動し、アプリ終了時に停止します。
-    /// EditorではPythonスクリプトを起動します。配布版は起動用バッチが同じ役割を持ちます。
+    /// EditorではPythonスクリプトを起動します。配布版ではGUIランチャーが管理します。
     /// </summary>
     public sealed class FruitCatchTrackerProcess : MonoBehaviour
     {
@@ -64,9 +64,9 @@ namespace FruitCatch.Preparation
                 return null;
             }
 
-            return CreateHiddenStartInfo(editorPythonCommand, Quote(scriptPath), projectRoot);
+            return CreateHiddenStartInfo(editorPythonCommand, "-X utf8 -u " + Quote(scriptPath), projectRoot);
 #else
-            // 配布版は Start FruitCatch.bat がPythonを起動してからゲームを開く。
+            // 配布版ではランチャーがカメラを準備してからゲームを開く。
             return null;
 #endif
         }
