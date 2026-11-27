@@ -14,4 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ItemDefinition
   itemId: grape
   kind: 0
-  scoreDelta: 10
+  scoreDelta: 20
+  displayName: "\u3076\u3069\u3046"
+  sprite: {fileID: 21300000, guid: 50dd508b4b197a2499aff54c35783c6c, type: 3}
+  normalSpawnWeight: 0.8
+  feverSpawnWeight: 0.8
+  rareVisual: 0

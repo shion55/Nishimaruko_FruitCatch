@@ -173,11 +173,11 @@ public class EaterCatchController : MonoBehaviour
         }
 
         if (scorePopup != null)
-            scorePopup.ShowScore(consumption.ScoreDelta,
+            scorePopup.ShowScore(consumption.ScoreDelta, mouthCollider.bounds.center,
                 consumption.Effect == ItemEffectType.Fever ||
                 (fallingItemSpawner != null && fallingItemSpawner.IsFever));
 
-        gameManager.RegisterCatch(consumption.Category, consumption.ScoreDelta);
+        gameManager.RegisterCatch(consumption);
         ApplyItemEffect(consumption.Effect);
         ItemConsumed?.Invoke(consumption);
     }
@@ -224,6 +224,7 @@ public class EaterCatchController : MonoBehaviour
 
     private void OnDisable()
     {
+        scorePopup?.Clear();
         eatingTimer.Clear();
         if (myspriterenderer != null)
         {

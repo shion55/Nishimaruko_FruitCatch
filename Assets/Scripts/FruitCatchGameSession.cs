@@ -35,6 +35,7 @@ public sealed class FruitCatchGameSession : MonoBehaviour
     [SerializeField] private EaterCatchController eaterController;
     [SerializeField] private CharacterPairController characterMovement;
     [SerializeField] private ItemEffectController itemEffects;
+    [SerializeField] private MicrophoneAnalysis voiceFeedbackMicrophone;
 
     public bool IsPlaying { get; private set; }
     public float ElapsedTime { get; private set; }
@@ -133,7 +134,9 @@ public sealed class FruitCatchGameSession : MonoBehaviour
     {
         leaving = true;
         StopAllCoroutines();
+        PreparationCrossfade.CancelActive();
         EndGameplay();
+        gameManager?.ResetGameResults();
         FruitCatchAudioManager.StopGameAudioIfAvailable();
     }
 
@@ -167,6 +170,9 @@ public sealed class FruitCatchGameSession : MonoBehaviour
 
     private IEnumerator Start()
     {
+        while (PreparationCrossfade.IsSceneTransitionActive)
+            yield return null;
+
         if (gameManager != null)
             gameManager.ResetGameResults();
 
@@ -176,6 +182,7 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         IsPlaying = true;
         FruitCatchAudioManager audio = FruitCatchAudioManager.Instance;
         audio.PlayGameBgm();
+        audio.SetVoiceFeedbackInput(voiceFeedbackMicrophone);
         if (characterMovement != null)
             characterMovement.SetMovementEnabled(true);
         if (itemEffects != null)
@@ -225,7 +232,7 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         }
         else
         {
-            ShowResults(float.PositiveInfinity);
+            ShowResults(resultDisplayDuration * 0.9f);
             yield return new WaitForSecondsRealtime(resultDisplayDuration);
         }
 
@@ -351,6 +358,8 @@ public sealed class FruitCatchGameSession : MonoBehaviour
     private void EndGameplay()
     {
         IsPlaying = false;
+        gameManager?.ClearScoreAnimation();
+        FruitCatchAudioManager.ClearVoiceFeedbackInputIfAvailable(voiceFeedbackMicrophone);
         if (itemSpawner != null)
             itemSpawner.SetSpawningEnabled(false);
         if (eaterController != null)
@@ -381,32 +390,47 @@ public sealed class FruitCatchGameSession : MonoBehaviour
             resultsRoot.SetActive(true);
 
         int score = gameManager != null ? gameManager.Score : 0;
-        resultCelebration?.Play(score, animationBudget);
-        int fruits = gameManager != null ? gameManager.FruitCount : 0;
+        int fruits = gameManager != null ? gameManager.NormalFruitCount : 0;
         int bugs = gameManager != null ? gameManager.BugCount : 0;
         RectTransform resultCard = resultTitle != null ? resultTitle.transform.parent as RectTransform : null;
+        FruitResultPresentation fruitPresentation = resultCard != null ? resultCard.GetComponent<FruitResultPresentation>() : null;
+        TMP_FontAsset font = announcementText != null ? announcementText.font : timerText?.font;
+        bool animate = fruitPresentation == null || fruitPresentation.AnimationEnabled;
+        if (animate)
+            resultCelebration?.Play(score, animationBudget);
         bool isHighScore = false;
 
         if (gameManager != null && resultsRoot != null && resultsRoot.transform is RectTransform results)
         {
-            TMP_FontAsset font = announcementText != null ? announcementText.font : timerText?.font;
             ranking = new FruitCatchRanking(results, resultCard, font);
             isHighScore = ranking.Record(score);
         }
 
         if (resultTitle != null)
+        {
             resultTitle.SetAnnotatedText(isHighScore ? "ハイスコア！" : "けっか[発表|はっぴょう]");
+            if (isHighScore && resultTitle.TryGetComponent(out TMP_Text titleText))
+            {
+                titleText.color = FruitCatchUi.Gold;
+                titleText.outlineColor = new Color32(84, 42, 18, 255);
+                titleText.outlineWidth = 0.18f;
+            }
+        }
         if (scoreResult != null)
             scoreResult.SetAnnotatedText($"とく[点|てん]　{score}");
         if (fruitResult != null)
-            fruitResult.SetAnnotatedText($"くだもの\n× {fruits}");
+            fruitResult.SetAnnotatedText($"くだもの ぜんぶで ×{fruits}");
         if (bugResult != null)
-            bugResult.SetAnnotatedText($"むし\n× {bugs}");
+            bugResult.SetAnnotatedText($"むし　×{bugs}");
         if (resultMessage != null)
             resultMessage.SetAnnotatedText(GetScoreMessage(score));
 
         DecorateResultCounts(resultCard);
-        if (isHighScore && resultCard != null)
+        if (fruitPresentation != null)
+            StartCoroutine(fruitPresentation.Show(itemSpawner?.NormalFruitPrefabs, gameManager, font,
+                fruitResult != null ? fruitResult.gameObject : null, scoreResult?.transform as RectTransform,
+                ranking?.Card.gameObject, animationBudget));
+        if (isHighScore && resultCard != null && animate)
             StartCoroutine(PlayHighScoreDecoration(resultCard, animationBudget));
     }
 
@@ -418,11 +442,11 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         if (resultCard.Find("FruitSummaryCard") == null)
         {
             Image fruitCard = FruitCatchUi.Fill("FruitSummaryCard", resultCard,
-                new Vector2(0.07f, 0.325f), new Vector2(0.495f, 0.61f),
+                new Vector2(0.065f, 0.276f), new Vector2(0.535f, 0.355f),
                 new Color32(35, 112, 78, 235));
             fruitCard.rectTransform.SetAsFirstSibling();
             Image bugCard = FruitCatchUi.Fill("BugSummaryCard", resultCard,
-                new Vector2(0.505f, 0.325f), new Vector2(0.93f, 0.61f),
+                new Vector2(0.55f, 0.276f), new Vector2(0.935f, 0.355f),
                 new Color32(103, 48, 118, 235));
             bugCard.rectTransform.SetAsFirstSibling();
         }
@@ -437,8 +461,8 @@ public sealed class FruitCatchGameSession : MonoBehaviour
             return;
         text.alignment = TextAlignmentOptions.Center;
         text.enableAutoSizing = true;
-        text.fontSizeMin = 22f;
-        text.fontSizeMax = 54f;
+        text.fontSizeMin = 14f;
+        text.fontSizeMax = 40f;
         text.fontStyle = FontStyles.Bold;
         text.color = color;
         text.lineSpacing = -10f;
@@ -447,13 +471,6 @@ public sealed class FruitCatchGameSession : MonoBehaviour
     private IEnumerator PlayHighScoreDecoration(RectTransform resultCard, float animationBudget)
     {
         TMP_Text titleText = resultTitle != null ? resultTitle.GetComponent<TMP_Text>() : null;
-        if (titleText != null)
-        {
-            titleText.color = FruitCatchUi.Gold;
-            titleText.outlineColor = new Color32(84, 42, 18, 255);
-            titleText.outlineWidth = 0.18f;
-        }
-
         RectTransform decoration = FruitCatchUi.Rect("HighScoreStars", resultCard,
             new Vector2(0f, 0.7f), new Vector2(1f, 1f));
         decoration.SetAsLastSibling();

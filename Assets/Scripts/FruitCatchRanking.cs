@@ -18,6 +18,7 @@ internal sealed class FruitCatchRanking
     private readonly TMP_Text currentRank;
     private readonly TMP_Text[] rows = new TMP_Text[VisibleScores];
     private int currentIndex = -1;
+    internal RectTransform Card { get; }
 
     public FruitCatchRanking(RectTransform results, RectTransform resultsCard, TMP_FontAsset font)
     {
@@ -27,6 +28,7 @@ internal sealed class FruitCatchRanking
 
         RectTransform card = FruitCatchUi.Fill("LocalRanking", results,
             new Vector2(0.57f, 0.08f), new Vector2(0.96f, 0.92f), FruitCatchUi.Ink).rectTransform;
+        Card = card;
         FruitCatchUi.Fill("Accent", card, new Vector2(0f, 0.978f), Vector2.one, FruitCatchUi.Gold);
         FruitCatchUi.Label("Title", card, new Vector2(0.06f, 0.82f), new Vector2(0.94f, 0.96f),
             font, FruitCatchUi.Cream, 66f, "ランキング");

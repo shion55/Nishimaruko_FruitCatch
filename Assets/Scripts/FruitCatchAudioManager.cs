@@ -22,6 +22,7 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
     private AudioSource soundEffectSource;
     private AudioSource chiliSwaySource;
     private AudioSource bananaSlideSource;
+    private MicrophoneVoiceFeedback voiceFeedback;
     private Coroutine musicFade;
     private TimedMusic timedMusic;
     private double timedMusicStart;
@@ -50,6 +51,12 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
             instance.StopGameAudio();
     }
 
+    internal static void ClearVoiceFeedbackInputIfAvailable(MicrophoneAnalysis input)
+    {
+        if (instance != null)
+            instance.voiceFeedback?.ClearInput(input);
+    }
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStatic() => instance = null;
 
@@ -74,6 +81,7 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
         chiliSwaySource = CreateSource("ChiliSway");
         chiliSwaySource.loop = true;
         bananaSlideSource = CreateSource("BananaSlide");
+        voiceFeedback = MicrophoneVoiceFeedback.Attach(CreateSource("VoiceFeedback"));
 
         if (settings == null)
             Debug.LogWarning("FruitCatchAudioSettings が Resources に見つかりません。");
@@ -92,6 +100,8 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
     public void PlayFruitEat() => PlayOneShot(settings?.FruitEatSound, settings?.FruitEatSoundVolume ?? 0f);
     public void PlayWallImpact() => PlayOneShot(settings?.WallImpactSound, settings?.WallImpactSoundVolume ?? 0f);
     public void PlayBugEat() => PlayOneShot(settings?.BugEatSound, settings?.BugEatSoundVolume ?? 0f);
+
+    internal void SetVoiceFeedbackInput(MicrophoneAnalysis input) => voiceFeedback.SetInput(input);
 
     public void SetChiliSwayPlaying(bool swaying)
     {
@@ -233,6 +243,7 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
 
     public void StopGameAudio()
     {
+        voiceFeedback.SetInput(null);
         StopMusic();
         StopTimedMusic();
         StopItemEffectAudio();
@@ -269,6 +280,7 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
 
     private void Update()
     {
+        voiceFeedback?.Refresh(settings);
         if (timedMusic != TimedMusic.Fever && timedMusic != TimedMusic.EndingFever)
             return;
 

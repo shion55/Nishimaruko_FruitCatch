@@ -15,3 +15,8 @@ MonoBehaviour:
   itemId: apple
   kind: 0
   scoreDelta: 10
+  displayName: "\u308A\u3093\u3054"
+  sprite: {fileID: 21300000, guid: 64464fa0d496382479db9ab70c33d92e, type: 3}
+  normalSpawnWeight: 1
+  feverSpawnWeight: 1
+  rareVisual: 0

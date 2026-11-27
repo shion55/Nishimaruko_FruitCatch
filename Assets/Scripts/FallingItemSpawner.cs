@@ -67,6 +67,7 @@ public class FallingItemSpawner : MonoBehaviour
 
     private readonly List<Slot> slots = new List<Slot>();
     private readonly List<CatchableItem> activeItems = new List<CatchableItem>();
+    private readonly List<CatchableItem> normalFruitPrefabs = new List<CatchableItem>();
     private Camera mainCamera;
     private float runDuration = 50f;
     private float nextFruitTime;
@@ -86,6 +87,7 @@ public class FallingItemSpawner : MonoBehaviour
     public float CurrentFruitRate => IsFever ? feverFruitsPerSecond : CurrentPhase.fruitsPerSecond;
     public int ActiveItemCount { get { PruneItems(); return activeItems.Count; } }
     public int MaxActiveItems => maxActiveItems;
+    internal IReadOnlyList<CatchableItem> NormalFruitPrefabs => normalFruitPrefabs;
     public event Action<CatchableItem> ItemSpawned;
     public event Action FeverStarted;
 
@@ -117,6 +119,12 @@ public class FallingItemSpawner : MonoBehaviour
         previousX = 0f;
         nextEffectTime = nextSpecialTime = 0f;
         nextFeverTime = RandomRange(firstFeverWindow);
+        normalFruitPrefabs.Clear();
+        if (fruitPrefabs != null)
+            foreach (GameObject prefab in fruitPrefabs)
+                if (prefab != null && prefab.TryGetComponent(out CatchableItem item) &&
+                    item.Definition != null && item.Kind == ItemKind.Fruit)
+                    normalFruitPrefabs.Add(item);
         BuildSlots();
         SpawningEnabled = runDuration > 0f;
         nextFruitTime = GetFruitInterval();
@@ -258,8 +266,30 @@ public class FallingItemSpawner : MonoBehaviour
 
     private GameObject RandomFruit()
     {
-        return fruitPrefabs != null && fruitPrefabs.Length > 0
-            ? fruitPrefabs[Random.Range(0, fruitPrefabs.Length)] : null;
+        if (normalFruitPrefabs.Count == 0)
+            return null;
+
+        bool isFever = IsFever;
+        double total = 0;
+        foreach (CatchableItem fruit in normalFruitPrefabs)
+            total += fruit.Definition.GetSpawnWeight(isFever);
+        // If all weights are zero, keep the previous uniform distribution and spawn cadence.
+        if (total <= 0)
+            return normalFruitPrefabs[Random.Range(0, normalFruitPrefabs.Count)].gameObject;
+
+        double draw = Random.value * total;
+        CatchableItem lastEligible = null;
+        foreach (CatchableItem fruit in normalFruitPrefabs)
+        {
+            float weight = fruit.Definition.GetSpawnWeight(isFever);
+            if (weight <= 0)
+                continue;
+            lastEligible = fruit;
+            draw -= weight;
+            if (draw < 0)
+                return fruit.gameObject;
+        }
+        return lastEligible.gameObject;
     }
 
     private CatchableItem SpawnItem(GameObject prefab, SpawnPlacement placement)
@@ -271,9 +301,9 @@ public class FallingItemSpawner : MonoBehaviour
         if (mainCamera == null)
             return null;
 
-        SpriteRenderer sprite = prefab.GetComponent<SpriteRenderer>();
-        float margin = sprite != null && sprite.sprite != null
-            ? Mathf.Max(0.5f, sprite.sprite.bounds.extents.x * Mathf.Abs(prefab.transform.localScale.x)) : 0.5f;
+        Sprite sprite = prefab.TryGetComponent(out CatchableItem template) ? template.DisplaySprite : null;
+        float margin = sprite != null
+            ? Mathf.Max(0.5f, sprite.bounds.extents.x * Mathf.Abs(prefab.transform.localScale.x)) : 0.5f;
         float limit = Mathf.Max(0f, mainCamera.orthographicSize * mainCamera.aspect - margin);
         float x;
         switch (placement)

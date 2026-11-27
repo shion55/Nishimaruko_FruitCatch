@@ -131,29 +131,27 @@ public static class FruitCatchSessionInstaller
         cardGraphic.BorderThickness = 8f;
         cardGraphic.DashLength = 26f;
         cardGraphic.GapLength = 15f;
+        card.AddComponent<FruitResultPresentation>();
 
         title = CreateFuriganaText(card.transform, "ResultTitle", font,
-            new Vector2(0.08f, 0.78f), new Vector2(0.92f, 0.94f), 62f, TextAlignmentOptions.Center,
+            new Vector2(0.08f, 0.82f), new Vector2(0.92f, 0.955f), 62f, TextAlignmentOptions.Center,
             "けっか[発表|はっぴょう]");
         score = CreateFuriganaText(card.transform, "ResultScore", font,
-            new Vector2(0.16f, 0.61f), new Vector2(0.84f, 0.76f), 58f, TextAlignmentOptions.Center,
+            new Vector2(0.11f, 0.11f), new Vector2(0.89f, 0.263f), 82f, TextAlignmentOptions.Center,
             "とく[点|てん]　0");
 
-        Sprite fruitSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Image/honbansozai/fruit1.png");
         Sprite bugSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Image/honbansozai/spider.png");
-        CreateImage(card.transform, "ResultFruitImage", fruitSprite,
-            new Vector2(0.12f, 0.36f), new Vector2(0.27f, 0.57f));
         CreateImage(card.transform, "ResultBugImage", bugSprite,
-            new Vector2(0.53f, 0.36f), new Vector2(0.68f, 0.57f));
+            new Vector2(0.565f, 0.284f), new Vector2(0.665f, 0.346f));
 
         fruit = CreateFuriganaText(card.transform, "ResultFruitCount", font,
-            new Vector2(0.25f, 0.37f), new Vector2(0.5f, 0.56f), 36f, TextAlignmentOptions.Center,
-            "[食|た]べたくだもの　0こ");
+            new Vector2(0.078f, 0.28f), new Vector2(0.52f, 0.35f), 36f, TextAlignmentOptions.Center,
+            "くだもの ぜんぶで ×0");
         bug = CreateFuriganaText(card.transform, "ResultBugCount", font,
-            new Vector2(0.66f, 0.37f), new Vector2(0.91f, 0.56f), 36f, TextAlignmentOptions.Center,
-            "[食|た]べたむし　0ひき");
+            new Vector2(0.67f, 0.28f), new Vector2(0.92f, 0.35f), 36f, TextAlignmentOptions.Center,
+            "むし　×0");
         message = CreateFuriganaText(card.transform, "ResultMessage", font,
-            new Vector2(0.1f, 0.1f), new Vector2(0.9f, 0.31f), 44f, TextAlignmentOptions.Center,
+            new Vector2(0.09f, 0.037f), new Vector2(0.91f, 0.103f), 38f, TextAlignmentOptions.Center,
             "いいちょうし！");
         return root;
     }

@@ -14,4 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ItemDefinition
   itemId: strawberry
   kind: 0
-  scoreDelta: 10
+  scoreDelta: 30
+  displayName: "\u3082\u3082"
+  sprite: {fileID: 8298750124693787471, guid: b53ef2972390b904bb6e29655e992643, type: 3}
+  normalSpawnWeight: 0.4
+  feverSpawnWeight: 0.4
+  rareVisual: 1

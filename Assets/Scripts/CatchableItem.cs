@@ -3,6 +3,7 @@ using UnityEngine;
 
 public readonly struct ItemConsumption
 {
+    public ItemDefinition Definition { get; }
     public ItemKind Kind { get; }
     public ItemCategory Category { get; }
     public string ItemId { get; }
@@ -12,6 +13,7 @@ public readonly struct ItemConsumption
 
     public ItemConsumption(ItemDefinition definition, Vector3 worldPosition)
     {
+        Definition = definition;
         Kind = definition.Kind;
         Category = definition.Category;
         ItemId = definition.ItemId;
@@ -31,8 +33,20 @@ public class CatchableItem : MonoBehaviour
     public string ItemId => definition != null ? definition.ItemId : string.Empty;
     public int ScoreDelta => definition != null ? definition.ScoreDelta : 0;
     public bool IsConsumed => consumed;
+    public Sprite DisplaySprite => definition != null && Kind == ItemKind.Fruit && definition.Sprite != null
+        ? definition.Sprite : GetComponentInChildren<SpriteRenderer>()?.sprite;
 
     private bool consumed = false;
+
+    private void Awake()
+    {
+        if (definition != null && Kind == ItemKind.Fruit && definition.Sprite != null)
+        {
+            SpriteRenderer renderer = GetComponentInChildren<SpriteRenderer>();
+            if (renderer != null)
+                renderer.sprite = definition.Sprite;
+        }
+    }
 
     public bool TryConsume()
     {

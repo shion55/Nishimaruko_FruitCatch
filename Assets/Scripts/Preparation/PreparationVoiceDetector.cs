@@ -32,6 +32,7 @@ namespace FruitCatch.Preparation
         private Image levelFill;
         private PreparationOvalGraphic recognition;
         private bool voiceMusicPlaying;
+        private bool voiceFeedbackRequested;
         private const string MicrophonePreferenceKey = "FruitCatch.SelectedMicrophone";
 
         public bool IsVoiceDetected => detected;
@@ -88,9 +89,10 @@ namespace FruitCatch.Preparation
             if (flow == null)
                 return;
 
-            bool voiceStep = flow.CurrentRequiredSignal == PreparationSignal.VoiceDetected &&
-                flow.CurrentPanel != null && flow.CurrentPanel.activeInHierarchy;
+            bool activePanel = flow.CurrentPanel != null && flow.CurrentPanel.activeInHierarchy;
+            bool voiceStep = flow.CurrentRequiredSignal == PreparationSignal.VoiceDetected && activePanel;
             bool fruitStep = flow.CurrentRequiredSignal == PreparationSignal.FruitPractice;
+            SetVoiceFeedback(flow.isActiveAndEnabled && !flow.IsLeaving && activePanel && (voiceStep || fruitStep));
             SetVoiceMusic(voiceStep && voiceBgmVolume > 0f);
             if (!voiceStep && !fruitStep)
             {
@@ -202,9 +204,21 @@ namespace FruitCatch.Preparation
 
         private void OnDisable()
         {
+            SetVoiceFeedback(false);
             SetVoiceMusic(false);
             UpdateDetection(0f, false, 0f);
             flow?.ReportVoiceDetected(false);
+        }
+
+        private void SetVoiceFeedback(bool play)
+        {
+            if (play == voiceFeedbackRequested)
+                return;
+            voiceFeedbackRequested = play;
+            if (play && microphone != null)
+                FruitCatchAudioManager.Instance.SetVoiceFeedbackInput(microphone);
+            else
+                FruitCatchAudioManager.ClearVoiceFeedbackInputIfAvailable(microphone);
         }
 
         private void SetVoiceMusic(bool play)

@@ -42,7 +42,6 @@ namespace FruitCatch.Preparation
     {
         [Header("画面構成")]
         [SerializeField] private List<PreparationStep> steps = new List<PreparationStep>();
-        [SerializeField] private CanvasGroup fadeOverlay;
         [SerializeField, Min(0f)] private float fadeDuration = 0.35f;
 
         [Header("ゲーム開始")]
@@ -69,11 +68,13 @@ namespace FruitCatch.Preparation
         private bool simulatedCameraAvailable;
         private readonly Dictionary<PreparationStep, PreparationCountdown> stepCountdowns = new();
         private PreparationCountdown startCountdown;
+        private PreparationCrossfade crossfade;
 
         public int CurrentStepIndex => currentStepIndex;
         public bool DevelopmentMode => developmentMode;
         private bool DebugEnabled => developmentMode && (Application.isEditor || Debug.isDebugBuild);
         public bool IsTransitioning => transitioning;
+        internal bool IsLeaving => leaving;
         public float CurrentSignalProgress => steps.Count > 0 && currentStepIndex < steps.Count
             ? Mathf.Clamp01(signalHoldTime / Mathf.Max(0.001f, steps[currentStepIndex].RequiredHoldSeconds)) : 0f;
         public GameObject CurrentPanel => steps.Count > 0 && currentStepIndex < steps.Count
@@ -102,12 +103,6 @@ namespace FruitCatch.Preparation
             ShowOnlyCurrentPanel();
             StartMainMenuBgm();
 
-            if (fadeOverlay != null)
-            {
-                fadeOverlay.alpha = 0f;
-                fadeOverlay.blocksRaycasts = false;
-            }
-
             if (countdownText != null)
                 countdownText.text = string.Empty;
 
@@ -132,9 +127,26 @@ namespace FruitCatch.Preparation
             leaving = true;
             transitioning = true;
             StopAllCoroutines();
+            CancelCrossfade();
             if (TryGetComponent(out PreparationPythonBridge bridge))
                 bridge.enabled = false;
             FruitCatchAudioManager.StopGameAudioIfAvailable();
+        }
+
+        private void OnDisable()
+        {
+            if (crossfade == null)
+                return;
+            StopAllCoroutines();
+            CancelCrossfade();
+            transitioning = false;
+        }
+
+        private void CancelCrossfade()
+        {
+            if (crossfade != null)
+                crossfade.Cancel();
+            crossfade = null;
         }
 
         public void ReportHandsRaised(bool detected) => handsRaised = detected;
@@ -192,12 +204,6 @@ namespace FruitCatch.Preparation
 
             if (countdownText != null)
                 countdownText.text = string.Empty;
-
-            if (fadeOverlay != null)
-            {
-                fadeOverlay.alpha = 0f;
-                fadeOverlay.blocksRaycasts = false;
-            }
         }
 
         private void HandleDevelopmentInput()
@@ -307,9 +313,8 @@ namespace FruitCatch.Preparation
 
             bool leavingMainMenu = currentStepIndex == 0 && nextIndex != 0;
             if (leavingMainMenu)
-                yield return FadeToWithBgmOut();
-            else
-                yield return FadeTo(1f);
+                FruitCatchAudioManager.Instance.FadeOutMusic(fadeDuration);
+            yield return CaptureCrossfade();
 
             currentStepIndex = Mathf.Clamp(nextIndex, 0, Mathf.Max(0, steps.Count - 1));
             signalHoldTime = 0f;
@@ -319,7 +324,9 @@ namespace FruitCatch.Preparation
             if (currentStepIndex == 0)
                 StartMainMenuBgm();
 
-            yield return FadeTo(0f);
+            if (crossfade != null)
+                yield return crossfade.FadeOut(fadeDuration);
+            crossfade = null;
 
             transitioning = false;
         }
@@ -344,39 +351,32 @@ namespace FruitCatch.Preparation
                 startCountdown.Hide();
             }
 
-            yield return FadeTo(1f);
-
-            if (!string.IsNullOrWhiteSpace(gameplaySceneName))
-                FruitCatchGameSession.ChangeScene(gameplaySceneName, FruitCatchAudioManager.StopGameAudioIfAvailable);
-            else
-                Debug.LogError("PreparationFlowController: ゲームシーン名が設定されていません。");
-        }
-
-        private IEnumerator FadeTo(float target)
-        {
-            if (fadeOverlay == null)
-                yield break;
-
-            fadeOverlay.blocksRaycasts = true;
-            float start = fadeOverlay.alpha;
-            float duration = Mathf.Max(0.01f, fadeDuration);
-            float elapsed = 0f;
-
-            while (elapsed < duration)
+            if (string.IsNullOrWhiteSpace(gameplaySceneName) || !Application.CanStreamedLevelBeLoaded(gameplaySceneName))
             {
-                elapsed += Time.unscaledDeltaTime;
-                fadeOverlay.alpha = Mathf.Lerp(start, target, Mathf.Clamp01(elapsed / duration));
-                yield return null;
+                Debug.LogError($"PreparationFlowController: ゲームシーンを読み込めません。'{gameplaySceneName}'");
+                transitioning = false;
+                yield break;
             }
 
-            fadeOverlay.alpha = target;
-            fadeOverlay.blocksRaycasts = target > 0.001f;
+            yield return CaptureCrossfade();
+            PreparationCrossfade sceneCrossfade = crossfade;
+            crossfade = null;
+            if (sceneCrossfade != null)
+                sceneCrossfade.FadeIntoScene(gameplaySceneName, fadeDuration);
+            if (!FruitCatchGameSession.ChangeScene(gameplaySceneName, FruitCatchAudioManager.StopGameAudioIfAvailable))
+            {
+                if (sceneCrossfade != null)
+                    sceneCrossfade.Cancel();
+                transitioning = false;
+            }
         }
 
-        private IEnumerator FadeToWithBgmOut()
+        private IEnumerator CaptureCrossfade()
         {
-            FruitCatchAudioManager.Instance.FadeOutMusic(fadeDuration);
-            yield return FadeTo(1f);
+            if (fadeDuration <= 0f)
+                yield break;
+            crossfade = PreparationCrossfade.Create();
+            yield return crossfade.Capture();
         }
 
         private void StartMainMenuBgm() => FruitCatchAudioManager.Instance.PlayMainMenuBgm();

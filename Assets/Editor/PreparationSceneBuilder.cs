@@ -72,11 +72,10 @@ public static class PreparationSceneBuilder
 
         TMP_Text debugText;
         GameObject debugRoot = CreateDebugOverlay(canvasTransform, font, out debugText);
-        CanvasGroup fadeOverlay = CreateFadeOverlay(canvasTransform);
 
         GameObject flowObject = new GameObject("PreparationFlowController");
         PreparationFlowController flow = flowObject.AddComponent<PreparationFlowController>();
-        ConfigureFlow(flow, panels, fadeOverlay, countdownText, debugRoot, debugText, cameraSurface);
+        ConfigureFlow(flow, panels, countdownText, debugRoot, debugText, cameraSurface);
 
         EditorSceneManager.SaveScene(scene, ScenePath);
         AddScenesToBuildSettings();
@@ -301,17 +300,6 @@ public static class PreparationSceneBuilder
         return root;
     }
 
-    private static CanvasGroup CreateFadeOverlay(Transform parent)
-    {
-        GameObject root = CreateRect("FadeOverlay", parent, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-        Image image = root.AddComponent<Image>();
-        image.color = Color.white;
-        CanvasGroup group = root.AddComponent<CanvasGroup>();
-        group.alpha = 0f;
-        group.blocksRaycasts = false;
-        return group;
-    }
-
     private static TMP_Text CreateText(Transform parent, string name, string content, TMP_FontAsset font,
         float fontSize, TextAlignmentOptions alignment, Vector2 anchorMin, Vector2 anchorMax)
     {
@@ -345,7 +333,7 @@ public static class PreparationSceneBuilder
     }
 
     private static void ConfigureFlow(PreparationFlowController flow, IReadOnlyList<GameObject> panels,
-        CanvasGroup fadeOverlay, TMP_Text countdownText, GameObject debugRoot, TMP_Text debugText,
+        TMP_Text countdownText, GameObject debugRoot, TMP_Text debugText,
         PreparationCameraSurface cameraSurface)
     {
         SerializedObject serialized = new SerializedObject(flow);
@@ -377,7 +365,6 @@ public static class PreparationSceneBuilder
             step.FindPropertyRelative("showCountdown").boolValue = i == 1 || i == 4;
         }
 
-        serialized.FindProperty("fadeOverlay").objectReferenceValue = fadeOverlay;
         serialized.FindProperty("countdownText").objectReferenceValue = countdownText;
         serialized.FindProperty("debugOverlayRoot").objectReferenceValue = debugRoot;
         serialized.FindProperty("debugText").objectReferenceValue = debugText;

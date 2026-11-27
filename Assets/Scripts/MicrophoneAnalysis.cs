@@ -22,6 +22,13 @@ public class MicrophoneAnalysis : MonoBehaviour
     // Empty means the OS default microphone.
     public string ActiveDeviceName => activeDevice ?? "";
     public bool IsCapturing => microphoneClip != null;
+    internal AudioClip CaptureClip => microphoneClip;
+
+    internal int GetCapturePosition()
+    {
+        return microphoneClip != null && Microphone.IsRecording(activeDevice)
+            ? Microphone.GetPosition(activeDevice) : -1;
+    }
 
     private const int AnalysisFrames = 2048;
 

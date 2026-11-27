@@ -54,6 +54,13 @@ public sealed class FruitCatchAudioSettings : ScriptableObject
     [SerializeField] private AudioClip bugEatSound;
     [SerializeField, Range(0f, 1f)] private float bugEatSoundVolume = 1f;
 
+    [Header("Voice Feedback")]
+    [SerializeField] private bool voiceFeedbackEnabled = true;
+    [SerializeField, Range(0f, 1f)] private float voiceFeedbackVolume = 0.22f;
+    [SerializeField, Range(0f, 1f)] private float voiceFeedbackDry = 0f;
+    [SerializeField, Range(0f, 1f)] private float voiceFeedbackWet = 0.7f;
+    [SerializeField, Range(0.1f, 2f)] private float voiceFeedbackReverbTime = 0.65f;
+
     public AudioClip MainMenuBgm => mainMenuBgm;
     public float MainMenuBgmVolume => mainMenuBgmVolume;
     public AudioClip CountdownSound => countdownSound;
@@ -92,4 +99,9 @@ public sealed class FruitCatchAudioSettings : ScriptableObject
     public float BananaSlideSoundVolume => bananaSlideSoundVolume;
     public AudioClip BugEatSound => bugEatSound;
     public float BugEatSoundVolume => bugEatSoundVolume;
+    public bool VoiceFeedbackEnabled => voiceFeedbackEnabled;
+    public float VoiceFeedbackVolume => voiceFeedbackVolume;
+    public float VoiceFeedbackDry => voiceFeedbackDry;
+    public float VoiceFeedbackWet => voiceFeedbackWet;
+    public float VoiceFeedbackReverbTime => voiceFeedbackReverbTime;
 }
