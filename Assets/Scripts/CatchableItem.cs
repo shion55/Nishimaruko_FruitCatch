@@ -27,11 +27,11 @@ public class CatchableItem : MonoBehaviour
 {
     [SerializeField] private ItemDefinition definition;
 
-    public ItemDefinition Definition => definition;
+    public ItemDefinition Definition => FruitCatchOperatorSettings.Item(definition);
     public ItemKind Kind => definition != null ? definition.Kind : ItemKind.Fruit;
     public ItemCategory Category => definition != null ? definition.Category : ItemCategory.Fruit;
     public string ItemId => definition != null ? definition.ItemId : string.Empty;
-    public int ScoreDelta => definition != null ? definition.ScoreDelta : 0;
+    public int ScoreDelta => Definition != null ? Definition.ScoreDelta : 0;
     public bool IsConsumed => consumed;
     public Sprite DisplaySprite => definition != null && Kind == ItemKind.Fruit && definition.Sprite != null
         ? definition.Sprite : GetComponentInChildren<SpriteRenderer>()?.sprite;
@@ -60,7 +60,7 @@ public class CatchableItem : MonoBehaviour
             return false;
 
         consumed = true;
-        consumption = new ItemConsumption(definition, transform.position);
+        consumption = new ItemConsumption(Definition, transform.position);
         Destroy(gameObject);
         return true;
     }

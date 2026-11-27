@@ -22,6 +22,7 @@ public class MicrophoneAnalysis : MonoBehaviour
     // Empty means the OS default microphone.
     public string ActiveDeviceName => activeDevice ?? "";
     public bool IsCapturing => microphoneClip != null;
+    internal string DefaultDeviceName { get; private set; }
     internal AudioClip CaptureClip => microphoneClip;
 
     internal int GetCapturePosition()
@@ -46,20 +47,32 @@ public class MicrophoneAnalysis : MonoBehaviour
 
     private void Awake()
     {
+        DefaultDeviceName = deviceName;
         sampleRate = Mathf.Max(8000, sampleRate);
+        RefreshPitchRange();
+    }
 
+    internal void RefreshPitchRange()
+    {
         float low = Mathf.Max(40f, minPitchHz);
         float high = Mathf.Max(low + 1f, maxPitchHz);
-        minLag = Mathf.Max(2, Mathf.FloorToInt(sampleRate / high));
-        maxLag = Mathf.CeilToInt(sampleRate / low);
+        int nextMinLag = Mathf.Max(2, Mathf.FloorToInt(sampleRate / high));
+        int nextMaxLag = Mathf.CeilToInt(sampleRate / low);
+        if (nextMinLag == minLag && nextMaxLag == maxLag) return;
+        minLag = nextMinLag;
+        maxLag = nextMaxLag;
         readFrames = AnalysisFrames + maxLag;
         monoSamples = new float[readFrames];
         yinDifference = new float[maxLag + 1];
+        if (microphoneClip != null)
+            interleavedSamples = new float[readFrames * channels];
     }
 
     private void OnEnable()
     {
-        SelectMicrophone(deviceName);
+        string selected = FruitCatchOperatorSettings.MicrophoneForScene(DefaultDeviceName);
+        if (!SelectMicrophone(selected) && selected != DefaultDeviceName)
+            SelectMicrophone(DefaultDeviceName);
     }
 
     // Called by the debug UI. It changes the microphone without restarting Play mode.

@@ -157,7 +157,7 @@ class PreviewServer(ThreadingHTTPServer):
         super().server_bind()
 
 
-def make_preview_handler(stream):
+def make_preview_handler(stream, *, extra_headers=None):
     class PreviewHandler(BaseHTTPRequestHandler):
         def do_GET(self):
             url = urlsplit(self.path)
@@ -207,6 +207,8 @@ def make_preview_handler(stream):
                 self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", str(len(data)))
                 self.send_header("Cache-Control", "no-store")
+                for key, value in (extra_headers or {}).items():
+                    self.send_header(key, value)
                 for key, value in (headers or {}).items():
                     self.send_header(key, value)
                 self.end_headers()

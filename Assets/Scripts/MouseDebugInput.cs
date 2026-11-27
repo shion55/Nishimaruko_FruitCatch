@@ -2,11 +2,13 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// EditorとDevelopment Buildで、F2によりマウスを実機入力の代わりに使います。
+/// EditorとDevelopment Buildでは、F3でマウスを実機入力の代わりに使います。
 /// シーンをまたいで状態を保持し、Play開始時には通常入力へ戻します。
 /// </summary>
 public static class MouseDebugInput
 {
+    internal static bool Current => Enabled;
+    internal static void SetEnabled(bool active) => enabled = active;
     private static bool enabled;
     private static int lastToggleFrame = -1;
     private static float mouthOpenAmount = 1f;
@@ -16,11 +18,10 @@ public static class MouseDebugInput
     {
         get
         {
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (!Application.isPlaying)
                 return false;
 
-            if (lastToggleFrame != Time.frameCount)
+            if (lastToggleFrame != Time.frameCount && (Application.isEditor || Debug.isDebugBuild))
             {
                 lastToggleFrame = Time.frameCount;
                 if (Application.isFocused && Keyboard.current != null &&
@@ -31,9 +32,6 @@ public static class MouseDebugInput
             }
 
             return enabled;
-#else
-            return false;
-#endif
         }
     }
 
@@ -109,7 +107,8 @@ public static class MouseDebugInput
     private static bool TryGetMouse(out Mouse mouse)
     {
         mouse = Mouse.current;
-        if (!Enabled || !Application.isFocused || mouse == null || !mouse.enabled)
+        if (!Enabled || FruitCatchOperatorPanel.BlocksGameplayInput || !Application.isFocused ||
+            mouse == null || !mouse.enabled)
             return false;
 
         Vector2 pointer = mouse.position.ReadValue();

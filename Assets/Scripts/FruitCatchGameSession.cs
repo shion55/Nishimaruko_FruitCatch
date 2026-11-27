@@ -130,7 +130,7 @@ public sealed class FruitCatchGameSession : MonoBehaviour
             HandleOperatorInput(preparationSceneName, gameObject.scene.name, StopForOperator);
     }
 
-    private void StopForOperator()
+    internal void StopForOperator()
     {
         leaving = true;
         StopAllCoroutines();
@@ -138,6 +138,32 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         EndGameplay();
         gameManager?.ResetGameResults();
         FruitCatchAudioManager.StopGameAudioIfAvailable();
+    }
+
+    private bool finishRequested;
+    private bool feverSync, resultsSync;
+    private float fixedFeverDuration;
+    private double feverDeadline;
+
+    internal bool CanOperatePlay => IsPlaying && !leaving && !finishRequested;
+    internal string OperatorStage => resultsRoot != null && resultsRoot.activeSelf ? "結果発表"
+        : IsPlaying ? "ゲーム中" : finishRequested || ElapsedTime > 0 ? "終了演出" : "開始演出";
+    internal void OperatorReplay() => ChangeScene(gameObject.scene.name, StopForOperator);
+    internal void OperatorPreparation() => ChangeScene(preparationSceneName, () =>
+    {
+        StopForOperator();
+        PreparationPythonBridge.ClearRegistration();
+    });
+    internal void OperatorFinish() { if (CanOperatePlay) finishRequested = true; }
+    internal void OperatorFever(bool active)
+    {
+        if (!CanOperatePlay || itemSpawner == null) return;
+        if (active) itemSpawner.StartFever(force: true);
+        else if (itemSpawner.IsFever)
+        {
+            itemSpawner.EndFever();
+            FruitCatchAudioManager.Instance.InterruptFever(resumeGameMusic: true);
+        }
     }
 
     private void Awake()
@@ -165,13 +191,25 @@ public sealed class FruitCatchGameSession : MonoBehaviour
     private void PlayFeverBgm()
     {
         if (IsPlaying && !leaving)
-            FruitCatchAudioManager.Instance.PlayFeverBgm();
+        {
+            FruitCatchAudioManager audio = FruitCatchAudioManager.Instance;
+            if (!feverSync)
+                feverDeadline = AudioSettings.dspTime + fixedFeverDuration;
+            audio.PlayFeverBgm(feverSync ? 0f : fixedFeverDuration);
+        }
     }
 
     private IEnumerator Start()
     {
         while (PreparationCrossfade.IsSceneTransitionActive)
             yield return null;
+
+        FruitCatchOperatorSettings.ApplyNextRun();
+        feverSync = FruitCatchOperatorSettings.Enabled("time.feverSync");
+        resultsSync = FruitCatchOperatorSettings.Enabled("time.resultsSync");
+        fixedFeverDuration = Mathf.Max(.1f, FruitCatchOperatorSettings.Get("time.feverDuration"));
+        warningStartSeconds = Mathf.Min(warningStartSeconds, gameDuration);
+        UpdateTimer(gameDuration, false);
 
         if (gameManager != null)
             gameManager.ResetGameResults();
@@ -193,14 +231,21 @@ public sealed class FruitCatchGameSession : MonoBehaviour
             eaterController.enabled = true;
 
         float remaining = gameDuration;
-        while (remaining > 0f)
+        while (remaining > 0f && !finishRequested)
         {
             ElapsedTime = Mathf.Min(gameDuration, ElapsedTime + Time.deltaTime);
             remaining = RemainingTime;
             if (itemSpawner != null)
             {
-                if (remaining > 0f && itemSpawner.IsFever && audio.TryCompleteFeverBgm())
-                    itemSpawner.EndFever();
+                if (remaining > 0f && itemSpawner.IsFever)
+                {
+                    bool naturalEnd = audio.TryCompleteFeverBgm();
+                    if (feverSync ? naturalEnd : AudioSettings.dspTime >= feverDeadline)
+                    {
+                        itemSpawner.EndFever();
+                        if (!naturalEnd) audio.InterruptFever(resumeGameMusic: true);
+                    }
+                }
                 itemSpawner.AdvanceTo(ElapsedTime);
             }
             bool warning = remaining <= warningStartSeconds;
@@ -210,6 +255,7 @@ public sealed class FruitCatchGameSession : MonoBehaviour
             yield return null;
         }
 
+        FruitCatchOperatorSettings.FinishPlay();
         EndGameplay();
         audio.FadeOutGameBgm();
         RemoveFallingItems();
@@ -217,7 +263,7 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         audio.PlayFinish();
         yield return ShowAnnouncement("おわり！", finishColor, finishDisplayDuration);
         float resultsBgmDuration = audio.PlayResultsBgm();
-        if (resultsBgmDuration > 0f)
+        if (resultsBgmDuration > 0f && resultsSync)
         {
             while (audio.IsResultsBgmActive && !audio.HasResultsBgmStarted)
                 yield return null;
@@ -518,7 +564,7 @@ public sealed class FruitCatchGameSession : MonoBehaviour
     }
 
     [ContextMenu("ランキングを全件リセット")]
-    private void ResetLocalRanking()
+    internal void ResetLocalRanking()
     {
         if (ranking != null)
             ranking.Clear();

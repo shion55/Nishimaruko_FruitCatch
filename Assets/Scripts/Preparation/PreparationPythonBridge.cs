@@ -31,6 +31,7 @@ namespace FruitCatch.Preparation
         private float nextFaceCommandTime;
         private string registrationId;
         private string registrationCommand;
+        private float appliedRegistrationHold;
         private PreparationFacePresentation presentation;
         private bool wasFaceStep;
         private Rect guideUv;
@@ -42,6 +43,24 @@ namespace FruitCatch.Preparation
         private string lastWarning;
         private double metricsStartedAt;
         private int displayedFrames;
+        internal bool HasPreview => previewAvailable;
+        internal bool HasPreviewConnection { get; private set; }
+        internal float? ReceivedFramesPerSecond { get; private set; }
+        internal float? TrackerRegistrationHoldDefault { get; private set; }
+        private float RequestedRegistrationHold => TrackerRegistrationHoldDefault.HasValue
+            ? FruitCatchOperatorSettings.Get("time.registrationHold") : 0f;
+        internal static bool? RegistrationStatus { get; private set; }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetRegistrationStatus() => RegistrationStatus = null;
+
+        internal void ForgetRegistration()
+        {
+            registrationId = capturedRegistrationId = null;
+            registrationCommand = null;
+            faceRegistrationArmed = wasFaceStep = false;
+            flow?.ReportFaceAligned(false);
+        }
 
         private void Reset()
         {
@@ -81,7 +100,8 @@ namespace FruitCatch.Preparation
                     Canvas.ForceUpdateCanvases();
                     BeginRegistration();
                 }
-                else if (presentation != null && GuideChanged(presentation.GetGuideUv()))
+                else if (appliedRegistrationHold != RequestedRegistrationHold ||
+                         (presentation != null && GuideChanged(presentation.GetGuideUv())))
                     BeginRegistration();
 
                 if (!faceRegistrationArmed && Time.unscaledTime >= nextFaceCommandTime)
@@ -115,6 +135,9 @@ namespace FruitCatch.Preparation
             registrationCommand = string.Format(CultureInfo.InvariantCulture,
                 "AUTO_REGION {0} {1:F5} {2:F5} {3:F5} {4:F5}", registrationId,
                 guideUv.x, 1f - guideUv.yMax, guideUv.width, guideUv.height);
+            appliedRegistrationHold = RequestedRegistrationHold;
+            if (appliedRegistrationHold > 0f)
+                registrationCommand += " " + appliedRegistrationHold.ToString("F3", CultureInfo.InvariantCulture);
             faceRegistrationArmed = false;
             capturedRegistrationId = null;
             nextFaceCommandTime = 0f;
@@ -144,6 +167,12 @@ namespace FruitCatch.Preparation
                     request.timeout = requestTimeoutSeconds;
                     yield return request.SendWebRequest();
                     activeRequest = null;
+                    HasPreviewConnection = request.responseCode > 0;
+                    if (HasPreviewConnection)
+                        TrackerRegistrationHoldDefault = float.TryParse(
+                            request.GetResponseHeader("X-Registration-Hold-Seconds"), NumberStyles.Float,
+                            CultureInfo.InvariantCulture, out float defaultHold) && defaultHold > 0f && float.IsFinite(defaultHold)
+                            ? defaultHold : null;
 
                     if (request.result == UnityWebRequest.Result.Success)
                     {
@@ -218,6 +247,7 @@ namespace FruitCatch.Preparation
             {
                 presentation?.Capture(registrationTexture, guideUv);
                 capturedRegistrationId = id;
+                RegistrationStatus = true;
             }
         }
 
@@ -255,12 +285,14 @@ namespace FruitCatch.Preparation
                 request.GetResponseHeader("X-capture-fps"), request.GetResponseHeader("X-inference-fps"),
                 request.GetResponseHeader("X-jpeg-fps"), displayedFrames / interval,
                 request.GetResponseHeader("X-Frame-Age-Ms"), (now - startedAt) * 1000));
+            ReceivedFramesPerSecond = (float)(displayedFrames / interval);
             displayedFrames = 0;
             metricsStartedAt = now;
         }
 
         public static void ClearRegistration()
         {
+            RegistrationStatus = false;
             try
             {
                 using var client = new UdpClient();

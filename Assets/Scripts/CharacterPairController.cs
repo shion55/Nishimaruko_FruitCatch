@@ -201,6 +201,7 @@ public class CharacterPairController : MonoBehaviour
 
     private static float ReadKeyboardInput()
     {
+        if (FruitCatchOperatorPanel.BlocksGameplayInput) return 0f;
         Keyboard keyboard = Keyboard.current;
         if (keyboard == null)
             return 0f;

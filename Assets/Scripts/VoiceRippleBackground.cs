@@ -137,7 +137,7 @@ public sealed class VoiceRippleBackground : MonoBehaviour
         bool hasPitch = pitchController != null && pitchController.isActiveAndEnabled && pitchController.HasPitchInput;
         UpdateWind(hasPitch);
 
-        bool emitting = hasPitch && emissionPoint != null;
+        bool emitting = FruitCatchOperatorSettings.Enabled("visual.ripples") && hasPitch && emissionPoint != null;
         if (emitting && Time.deltaTime > 0f)
         {
             timeUntilNextRipple -= Time.deltaTime;
@@ -182,7 +182,7 @@ public sealed class VoiceRippleBackground : MonoBehaviour
             Ripple ripple = ripples[i];
             float age = Mathf.Max(0f, Time.time - ripple.startedAt);
             shaderRipples[i] = new Vector4(ripple.center.x, ripple.center.y, age,
-                age < duration ? ripple.strength : 0f);
+                FruitCatchOperatorSettings.Enabled("visual.ripples") && age < duration ? ripple.strength : 0f);
             shaderRippleSizes[i] = new Vector4(Mathf.Max(1f, ripple.radiusMultiplier), ripple.pitch, 0f, 0f);
         }
 

@@ -22,6 +22,12 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
     private AudioSource soundEffectSource;
     private AudioSource chiliSwaySource;
     private AudioSource bananaSlideSource;
+    private AudioSource previewSource;
+    private System.Func<float> previewVolume;
+    private float musicGain;
+    private float interruptedGain;
+    private bool mainMenuMusic;
+    private bool fixedFeverMusic;
     private MicrophoneVoiceFeedback voiceFeedback;
     private Coroutine musicFade;
     private TimedMusic timedMusic;
@@ -73,7 +79,9 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
 
         instance = this;
         DontDestroyOnLoad(gameObject);
-        settings = Resources.Load<FruitCatchAudioSettings>(SettingsResourceName);
+        var asset = Resources.Load<FruitCatchAudioSettings>(SettingsResourceName);
+        settings = asset == null ? null : Instantiate(asset);
+        FruitCatchOperatorSettings.BindAudio(settings);
         musicSource = CreateSource("Music");
         timedMusicSource = CreateSource("TimedMusic");
         transformationSource = CreateSource("Transformation");
@@ -81,6 +89,7 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
         chiliSwaySource = CreateSource("ChiliSway");
         chiliSwaySource.loop = true;
         bananaSlideSource = CreateSource("BananaSlide");
+        previewSource = CreateSource("OperatorPreview");
         voiceFeedback = MicrophoneVoiceFeedback.Attach(CreateSource("VoiceFeedback"));
 
         if (settings == null)
@@ -92,7 +101,7 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
         }
     }
 
-    public void PlayMainMenuBgm() => PlayMusic(settings?.MainMenuBgm, settings?.MainMenuBgmVolume ?? 0f, true);
+    public void PlayMainMenuBgm() => PlayMusic(settings?.MainMenuBgm, 1f, true);
     public void PlayCountdown() => PlayOneShot(settings?.CountdownSound, settings?.CountdownSoundVolume ?? 0f);
     public void PlayStart() => PlayOneShot(settings?.StartSound, settings?.StartSoundVolume ?? 0f);
     public void PlayFinish() => PlayOneShot(settings?.FinishSound, settings?.FinishSoundVolume ?? 0f);
@@ -113,7 +122,7 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
             return;
         }
 
-        chiliSwaySource.volume = settings.ChiliSwaySoundVolume;
+        chiliSwaySource.volume = settings.ChiliSwaySoundVolume * SeGain;
         chiliSwaySource.pitch = settings.ChiliSwaySoundPitch;
         if (chiliSwaySource.isPlaying && chiliSwaySource.clip == clip)
             return;
@@ -127,7 +136,7 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
         if (clip == null)
             return;
         bananaSlideSource.clip = clip;
-        bananaSlideSource.volume = settings.BananaSlideSoundVolume;
+        bananaSlideSource.volume = settings.BananaSlideSoundVolume * SeGain;
         bananaSlideSource.Play();
     }
 
@@ -143,7 +152,7 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
     {
         if (fruit) PlayFruitEat();
         PlayOneShot(fruit ? settings?.FruitPracticeSuccess : settings?.MovementPracticeSuccess,
-            settings?.PracticeSuccessVolume ?? 1f);
+            fruit ? FruitCatchOperatorSettings.Get("audio.fruitPracticeSuccessVolume") : settings?.PracticeSuccessVolume ?? 1f);
     }
 
     public void PlayQuietPreparationBgm(float volume, float duration)
@@ -151,7 +160,7 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
         if (settings == null || settings.MainMenuBgm == null) return;
         PlayMusic(settings.MainMenuBgm, 0f, true);
         quietPreparationBgm = true;
-        FadeMusicTo(settings.MainMenuBgmVolume * volume, duration, stopAtEnd: false);
+        FadeMusicTo(volume, duration, stopAtEnd: false);
     }
 
     public void FadeOutPreparationBgm(float duration)
@@ -167,7 +176,7 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
             return;
         transformationSource.Stop();
         transformationSource.clip = settings.TransformationSound;
-        transformationSource.volume = settings.TransformationSoundVolume;
+        transformationSource.volume = settings.TransformationSoundVolume * SeGain;
         transformationSource.loop = false;
         transformationSource.Play();
     }
@@ -184,26 +193,34 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
     {
         StopMusic();
         StopTimedMusic();
-        PlayMusic(settings?.GameBgm, settings?.GameBgmVolume ?? 0f, false);
+        PlayMusic(settings?.GameBgm, 1f, false);
     }
 
-    public void PlayFeverBgm()
+    public void PlayFeverBgm(float fixedDuration = 0f)
     {
-        if (timedMusic != TimedMusic.None || settings == null)
-            return;
+        if (timedMusic == TimedMusic.EndingFever) StopTimedMusic();
+        if (timedMusic != TimedMusic.None || settings == null) return;
         if (PlayTimedMusic(TimedMusic.Fever, settings.FeverBgm, settings.FeverBgmVolume,
                 settings.FeverBgmFadeOutDuration) > 0f)
+        {
+            fixedFeverMusic = fixedDuration > 0f;
+            if (fixedFeverMusic && timedMusicStart + fixedDuration < timedMusicEnd)
+            {
+                timedMusicEnd = timedMusicStart + fixedDuration;
+                timedMusicSource.SetScheduledEndTime(timedMusicEnd);
+            }
             FadeMusicTo(0f, settings.GameBgmFadeOutDuration, stopAtEnd: false);
+        }
     }
 
     public bool TryCompleteFeverBgm()
     {
-        if (timedMusic != TimedMusic.Fever || AudioSettings.dspTime < timedMusicEnd)
+        if (timedMusic != TimedMusic.Fever || fixedFeverMusic || AudioSettings.dspTime < timedMusicEnd)
             return false;
 
         StopTimedMusic();
         if (musicSource.isPlaying)
-            FadeMusicTo(settings.GameBgmVolume, settings.GameBgmResumeFadeInDuration, stopAtEnd: false);
+            FadeMusicTo(1f, settings.GameBgmResumeFadeInDuration, stopAtEnd: false);
         return true;
     }
 
@@ -223,6 +240,13 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
     public void FadeOutGameBgm()
     {
         FadeOutMusic(settings?.GameBgmFadeOutDuration ?? 0f);
+        InterruptFever(resumeGameMusic: false);
+    }
+
+    internal void InterruptFever(bool resumeGameMusic)
+    {
+        if (resumeGameMusic && musicSource.isPlaying)
+            FadeMusicTo(1f, settings?.GameBgmResumeFadeInDuration ?? 0f, stopAtEnd: false);
         if (timedMusic != TimedMusic.Fever)
             return;
 
@@ -236,7 +260,7 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
 
         // Changing the state invalidates natural completion before fading the remaining audio.
         timedMusic = TimedMusic.EndingFever;
-        timedMusicVolume = timedMusicSource.volume;
+        interruptedGain = TimedFeverGain(now);
         timedMusicFadeDuration = duration;
         timedMusicEnd = now + duration;
     }
@@ -249,6 +273,28 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
         StopItemEffectAudio();
         soundEffectSource.Stop();
         transformationSource.Stop();
+        StopPreview();
+    }
+
+    private static float BgmGain => FruitCatchOperatorSettings.Get("audio.bgm");
+    private static float SeGain => FruitCatchOperatorSettings.Get("audio.se");
+
+    internal void Preview(AudioClip clip, System.Func<float> volume, float pitch, bool bgm)
+    {
+        StopPreview();
+        if (clip == null) return;
+        previewVolume = () => volume() * (bgm ? BgmGain : SeGain);
+        previewSource.clip = clip;
+        previewSource.volume = previewVolume();
+        previewSource.pitch = pitch;
+        previewSource.Play();
+    }
+
+    internal void StopPreview()
+    {
+        previewVolume = null;
+        previewSource.Stop();
+        previewSource.clip = null;
     }
 
     private static void PreloadMusic(AudioClip clip)
@@ -273,7 +319,7 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
 
         timedMusicSource.clip = clip;
         timedMusicSource.loop = false;
-        timedMusicSource.volume = volume;
+        timedMusicSource.volume = volume * BgmGain;
         timedMusicSource.PlayScheduled(timedMusicStart);
         return (float)duration;
     }
@@ -281,6 +327,17 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
     private void Update()
     {
         voiceFeedback?.Refresh(settings);
+        ApplyMusicGain();
+        if (previewVolume != null) previewSource.volume = previewVolume();
+        soundEffectSource.volume = SeGain;
+        if (settings != null)
+        {
+            chiliSwaySource.volume = settings.ChiliSwaySoundVolume * SeGain;
+            transformationSource.volume = settings.TransformationSoundVolume * SeGain;
+            bananaSlideSource.volume = settings.BananaSlideSoundVolume * SeGain;
+        }
+        if (timedMusic == TimedMusic.Results)
+            timedMusicSource.volume = (settings?.ResultsBgmVolume ?? timedMusicVolume) * BgmGain;
         if (timedMusic != TimedMusic.Fever && timedMusic != TimedMusic.EndingFever)
             return;
 
@@ -291,16 +348,19 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
             return;
         }
 
-        if (timedMusicFadeDuration > 0f)
-        {
-            float gain = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(remaining / timedMusicFadeDuration));
-            timedMusicSource.volume = timedMusicVolume * gain;
-        }
+        timedMusicSource.volume = (settings?.FeverBgmVolume ?? timedMusicVolume) *
+            BgmGain * TimedFeverGain(AudioSettings.dspTime) *
+            (timedMusic == TimedMusic.EndingFever ? interruptedGain : 1f);
     }
+
+    private float TimedFeverGain(double now) =>
+        timedMusicFadeDuration <= 0f ? 1f : Mathf.SmoothStep(0f, 1f,
+            Mathf.Clamp01((float)(timedMusicEnd - now) / timedMusicFadeDuration));
 
     private void StopTimedMusic()
     {
         timedMusic = TimedMusic.None;
+        fixedFeverMusic = false;
         timedMusicSource.Stop();
         timedMusicSource.clip = null;
     }
@@ -318,7 +378,10 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
     private void PlayOneShot(AudioClip clip, float volume)
     {
         if (clip != null)
+        {
+            soundEffectSource.volume = SeGain;
             soundEffectSource.PlayOneShot(clip, volume);
+        }
     }
 
     private void PlayMusic(AudioClip clip, float volume, bool loop)
@@ -328,7 +391,9 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
             return;
         StopMusic();
         musicSource.clip = clip;
-        musicSource.volume = volume;
+        mainMenuMusic = loop;
+        musicGain = volume;
+        ApplyMusicGain();
         musicSource.loop = loop;
         musicSource.Play();
     }
@@ -343,9 +408,10 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
     private void FadeMusicTo(float volume, float duration, bool stopAtEnd)
     {
         StopMusicFade();
-        if (!musicSource.isPlaying || duration <= 0f || Mathf.Approximately(musicSource.volume, volume))
+        if (!musicSource.isPlaying || duration <= 0f || Mathf.Approximately(musicGain, volume))
         {
-            musicSource.volume = volume;
+            musicGain = volume;
+            ApplyMusicGain();
             if (stopAtEnd)
                 musicSource.Stop();
             return;
@@ -355,17 +421,24 @@ public sealed class FruitCatchAudioManager : MonoBehaviour
 
     private IEnumerator FadeMusicRoutine(float volume, float duration, bool stopAtEnd)
     {
-        float initialVolume = musicSource.volume;
+        float initialVolume = musicGain;
         float elapsed = 0f;
         while (elapsed < duration && musicSource.isPlaying)
         {
             yield return null;
             elapsed += Time.unscaledDeltaTime;
-            musicSource.volume = Mathf.Lerp(initialVolume, volume, Mathf.Clamp01(elapsed / duration));
+            musicGain = Mathf.Lerp(initialVolume, volume, Mathf.Clamp01(elapsed / duration));
+            ApplyMusicGain();
         }
         if (stopAtEnd)
             musicSource.Stop();
         musicFade = null;
+    }
+
+    private void ApplyMusicGain()
+    {
+        float baseVolume = mainMenuMusic ? settings?.MainMenuBgmVolume ?? 0f : settings?.GameBgmVolume ?? 0f;
+        musicSource.volume = baseVolume * BgmGain * musicGain;
     }
 
     private void StopMusicFade()

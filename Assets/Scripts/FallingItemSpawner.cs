@@ -76,6 +76,7 @@ public class FallingItemSpawner : MonoBehaviour
     private float nextFeverTime;
     private bool fever;
     private bool feverUsed;
+    private float[] phaseEnds;
     private int placementIndex;
     private float previousX;
 
@@ -88,6 +89,24 @@ public class FallingItemSpawner : MonoBehaviour
     public int ActiveItemCount { get { PruneItems(); return activeItems.Count; } }
     public int MaxActiveItems => maxActiveItems;
     internal IReadOnlyList<CatchableItem> NormalFruitPrefabs => normalFruitPrefabs;
+    internal SpawnPhaseSettings[] OperatorPhases => phases;
+
+    internal void BindOperatorItems()
+    {
+        if (fruitPrefabs != null)
+            foreach (GameObject prefab in fruitPrefabs)
+                Bind(prefab);
+        Bind(bugPrefab);
+        Bind(bananaPrefab);
+        Bind(chiliPrefab);
+        Bind(feverItemPrefab);
+
+        static void Bind(GameObject prefab)
+        {
+            if (prefab != null && prefab.TryGetComponent(out CatchableItem item))
+                _ = item.Definition;
+        }
+    }
     public event Action<CatchableItem> ItemSpawned;
     public event Action FeverStarted;
 
@@ -118,7 +137,12 @@ public class FallingItemSpawner : MonoBehaviour
         placementIndex = 0;
         previousX = 0f;
         nextEffectTime = nextSpecialTime = 0f;
-        nextFeverTime = RandomRange(firstFeverWindow);
+        float latestSpawn = Mathf.Max(0, runDuration - .05f);
+        nextFeverTime = Random.Range(Mathf.Min(firstFeverWindow.x, latestSpawn),
+            Mathf.Min(firstFeverWindow.y, latestSpawn));
+        phaseEnds = new float[phases.Length];
+        for (int i = 0; i < phases.Length; i++)
+            phaseEnds[i] = Mathf.Clamp(phases[i].endTime, i == 0 ? 0f : phaseEnds[i - 1], runDuration);
         normalFruitPrefabs.Clear();
         if (fruitPrefabs != null)
             foreach (GameObject prefab in fruitPrefabs)
@@ -144,7 +168,7 @@ public class FallingItemSpawner : MonoBehaviour
         }
 
         int phase = 0;
-        while (phase < phases.Length - 1 && ElapsedTime >= phases[phase].endTime)
+        while (phase < phases.Length - 1 && ElapsedTime >= phaseEnds[phase])
             phase++;
         if (CurrentPhaseIndex != phase)
         {
@@ -167,8 +191,11 @@ public class FallingItemSpawner : MonoBehaviour
     {
         slots.Clear();
         float start = 0f;
-        foreach (SpawnPhaseSettings phase in phases)
+        for (int iPhase = 0; iPhase < phases.Length; iPhase++)
         {
+            SpawnPhaseSettings phase = phases[iPhase];
+            float end = phaseEnds[iPhase];
+            if (end <= start) continue;
             var kinds = new List<ItemKind>();
             for (int i = 0; i < phase.bananaSlots; i++) kinds.Add(ItemKind.Banana);
             for (int i = 0; i < phase.chiliSlots; i++) kinds.Add(ItemKind.Chili);
@@ -178,20 +205,20 @@ public class FallingItemSpawner : MonoBehaviour
                 (kinds[i], kinds[j]) = (kinds[j], kinds[i]);
             }
             float gap = RandomRange(effectItemSpacing);
-            float latestFirst = phase.endTime - 1f - gap * Mathf.Max(0, kinds.Count - 1);
+            float latestFirst = end - 1f - gap * Mathf.Max(0, kinds.Count - 1);
             float time = Random.Range(start + 0.5f, Mathf.Max(start + 0.5f, latestFirst));
             foreach (ItemKind kind in kinds)
             {
-                slots.Add(new Slot { kind = kind, due = time, deadline = phase.endTime });
+                slots.Add(new Slot { kind = kind, due = time, deadline = end });
                 time += gap;
             }
             for (int i = 0; i < phase.bugSlots; i++)
             {
                 float fraction = (i + Random.Range(0.2f, 0.8f)) / phase.bugSlots;
                 slots.Add(new Slot { kind = ItemKind.Bug,
-                    due = Mathf.Lerp(start + 0.5f, phase.endTime - 1f, fraction), deadline = phase.endTime });
+                    due = Mathf.Lerp(start + 0.5f, end - 1f, fraction), deadline = end });
             }
-            start = phase.endTime;
+            start = end;
         }
         slots.Sort((a, b) => a.due.CompareTo(b.due));
     }
@@ -354,9 +381,9 @@ public class FallingItemSpawner : MonoBehaviour
         return spawned;
     }
 
-    public void StartFever()
+    public void StartFever(bool force = false)
     {
-        if (!SpawningEnabled || feverUsed || ElapsedTime >= runDuration)
+        if (!SpawningEnabled || fever || (!force && feverUsed) || ElapsedTime >= runDuration)
             return;
         fever = feverUsed = true;
         nextFruitTime = ElapsedTime;

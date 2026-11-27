@@ -44,6 +44,8 @@ public class EaterCatchController : MonoBehaviour
 
     // マイク／マウス代替入力を含む、口の拡縮と共通の平滑化済み音量。
     public float NormalizedVoiceVolume => Mathf.Clamp01(smoothedGain / Mathf.Max(0.001f, maxGain));
+    internal bool OperatorMouthOpen => isActiveAndEnabled && mouthCollider != null &&
+        mouthCollider.enabled && ReadInputGain() > mouthOpenThreshold;
 
     private void Awake()
     {

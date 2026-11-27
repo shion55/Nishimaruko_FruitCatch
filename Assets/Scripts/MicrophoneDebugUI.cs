@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 public class MicrophoneDebugUI : MonoBehaviour
@@ -15,7 +14,6 @@ public class MicrophoneDebugUI : MonoBehaviour
     [SerializeField] private Slider gainMeter;
     [SerializeField] private bool showPitch = true;
 
-    private const string PreferenceKey = "FruitCatch.SelectedMicrophone";
     private readonly List<string> deviceNames = new List<string>();
 
     private void Start()
@@ -27,14 +25,6 @@ public class MicrophoneDebugUI : MonoBehaviour
             return;
         }
 
-        // Device selection is stored locally on this computer, not in Git.
-        string savedDevice = PlayerPrefs.GetString(PreferenceKey, "");
-        if (savedDevice.Length > 0 && !microphone.SelectMicrophone(savedDevice))
-        {
-            microphone.SelectMicrophone("");
-            PlayerPrefs.DeleteKey(PreferenceKey);
-        }
-
         RefreshDevices();
         microphoneDropdown.onValueChanged.AddListener(OnDeviceSelected);
         if (refreshButton != null)
@@ -43,9 +33,6 @@ public class MicrophoneDebugUI : MonoBehaviour
 
     private void Update()
     {
-        if (Keyboard.current != null && Keyboard.current.f1Key.wasPressedThisFrame)
-            panelRoot.SetActive(!panelRoot.activeSelf);
-
         if (!panelRoot.activeInHierarchy || microphone == null) return;
 
         if (measurementText != null)
@@ -85,8 +72,7 @@ public class MicrophoneDebugUI : MonoBehaviour
         if (microphone.ActiveDeviceName.Length > 0 &&
             !deviceNames.Contains(microphone.ActiveDeviceName))
         {
-            microphone.SelectMicrophone("");
-            PlayerPrefs.DeleteKey(PreferenceKey);
+            FruitCatchOperatorSettings.SelectMicrophone("");
         }
 
         microphoneDropdown.ClearOptions();
@@ -101,12 +87,7 @@ public class MicrophoneDebugUI : MonoBehaviour
         if (index < 0 || index >= deviceNames.Count) return;
 
         string requested = deviceNames[index];
-        if (microphone.SelectMicrophone(requested))
-        {
-            PlayerPrefs.SetString(PreferenceKey, requested);
-            PlayerPrefs.Save();
-        }
-        else
+        if (!FruitCatchOperatorSettings.SelectMicrophone(requested))
         {
             Debug.LogWarning("MicrophoneDebugUI: Could not select microphone: " + requested);
         }

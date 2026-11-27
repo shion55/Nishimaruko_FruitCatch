@@ -7,14 +7,26 @@ public sealed class RareFruitSparkles : MonoBehaviour
     [SerializeField] private Material sparkleMaterial;
 
     private ParticleSystem sparkles;
+    private CatchableItem item;
+    private bool showing;
 
     private void OnEnable()
     {
-        CatchableItem item = GetComponent<CatchableItem>();
-        if (item.Definition == null || item.Kind != ItemKind.Fruit || !item.Definition.RareVisual ||
-            sparkleMaterial == null)
-            return;
+        item = GetComponent<CatchableItem>();
+        Update();
+    }
 
+    private void Update()
+    {
+        if (item == null || item.Kind != ItemKind.Fruit || sparkleMaterial == null) return;
+        bool visible = FruitCatchOperatorSettings.Enabled("visual.rare") && item.Definition != null &&
+                       item.Definition.RareVisual;
+        if (showing == visible) return;
+        if (!visible)
+        {
+            OnDisable();
+            return;
+        }
         if (sparkles == null)
         {
             Sprite sprite = item.DisplaySprite;
@@ -24,6 +36,7 @@ public sealed class RareFruitSparkles : MonoBehaviour
             sparkles = CreateSparkles(sprite.bounds, renderer);
         }
         sparkles.Play(false);
+        showing = true;
     }
 
     private ParticleSystem CreateSparkles(Bounds bounds, SpriteRenderer spriteRenderer)
@@ -72,6 +85,7 @@ public sealed class RareFruitSparkles : MonoBehaviour
 
     private void OnDisable()
     {
+        showing = false;
         if (sparkles != null)
             sparkles.Stop(false, ParticleSystemStopBehavior.StopEmittingAndClear);
     }

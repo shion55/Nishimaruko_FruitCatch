@@ -7,6 +7,7 @@ public class PitchFallSpeedController : MonoBehaviour
     [SerializeField] private MicrophoneAnalysis microphone;
 
     [SerializeField] private PitchFallSpeedSettings sharedSettings;
+    internal PitchFallSpeedSettings OperatorPitchSettings => sharedSettings;
 
     [Header("Pitch Range")]
     [SerializeField] private float minPitchHz = 120f;
@@ -30,6 +31,7 @@ public class PitchFallSpeedController : MonoBehaviour
     private float targetMultiplier = 1f;
     private float lastPitchTime = -Mathf.Infinity;
     private float targetPitch = 0.5f;
+    private bool publishedFallSpeed;
 
     private float MinPitch => sharedSettings != null ? sharedSettings.minPitchHz : minPitchHz;
     private float MaxPitch => sharedSettings != null ? sharedSettings.maxPitchHz : maxPitchHz;
@@ -47,6 +49,7 @@ public class PitchFallSpeedController : MonoBehaviour
 
     void OnEnable()
     {
+        sharedSettings = FruitCatchOperatorSettings.Pitch(sharedSettings);
         currentMultiplier = 1f;
         targetMultiplier = 1f;
         lastPitchTime = -Mathf.Infinity;
@@ -122,7 +125,11 @@ public class PitchFallSpeedController : MonoBehaviour
     private void ApplySpeed()
     {
         if (!applyToFallingObjects)
+        {
+            if (publishedFallSpeed) ResetFallSpeed();
             return;
+        }
+        publishedFallSpeed = true;
         float maxSpeed = Mathf.Max(0f, maxFallSpeed);
 
         // すべての落下物に同じ設定を適用
@@ -138,8 +145,12 @@ public class PitchFallSpeedController : MonoBehaviour
         HasPitchInput = HasCurrentPitch = false;
         currentMultiplier = 1f;
         targetMultiplier = 1f;
-        if (!applyToFallingObjects)
-            return;
+        if (publishedFallSpeed) ResetFallSpeed();
+    }
+
+    private void ResetFallSpeed()
+    {
+        publishedFallSpeed = false;
         FallingObject.FruitMultiplier = 1f;
         FallingObject.BugMultiplier = 1f;
 

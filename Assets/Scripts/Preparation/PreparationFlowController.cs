@@ -71,6 +71,24 @@ namespace FruitCatch.Preparation
         private PreparationCrossfade crossfade;
 
         public int CurrentStepIndex => currentStepIndex;
+        internal IReadOnlyList<PreparationStep> OperatorSteps => steps;
+        internal string OperatorStage => currentStepIndex < steps.Count
+            ? steps[currentStepIndex].DisplayName : "準備中";
+        internal bool CanOperateStep => !leaving && !transitioning && currentStepIndex < steps.Count;
+        internal void OperatorNext()
+        {
+            if (CanOperateStep) StartCoroutine(AdvanceRoutine());
+        }
+        internal void OperatorRestart(bool keepRegistration)
+        {
+            string target = keepRegistration ? gameplaySceneName : gameObject.scene.name;
+            if (!Application.CanStreamedLevelBeLoaded(target)) return;
+            FruitCatchGameSession.ChangeScene(target, () =>
+            {
+                StopForOperator();
+                if (!keepRegistration) PreparationPythonBridge.ClearRegistration();
+            });
+        }
         public bool DevelopmentMode => developmentMode;
         private bool DebugEnabled => developmentMode && (Application.isEditor || Debug.isDebugBuild);
         public bool IsTransitioning => transitioning;
@@ -122,7 +140,7 @@ namespace FruitCatch.Preparation
 
         private bool leaving;
 
-        private void StopForOperator()
+        internal void StopForOperator()
         {
             leaving = true;
             transitioning = true;
@@ -208,7 +226,7 @@ namespace FruitCatch.Preparation
 
         private void HandleDevelopmentInput()
         {
-            if (!DebugEnabled)
+            if (!DebugEnabled || FruitCatchOperatorPanel.BlocksGameplayInput)
                 return;
 
             Keyboard keyboard = Keyboard.current;
@@ -373,7 +391,7 @@ namespace FruitCatch.Preparation
 
         private IEnumerator CaptureCrossfade()
         {
-            if (fadeDuration <= 0f)
+            if (fadeDuration <= 0f || FruitCatchOperatorPanel.BlocksGameplayInput)
                 yield break;
             crossfade = PreparationCrossfade.Create();
             yield return crossfade.Capture();
@@ -424,10 +442,12 @@ namespace FruitCatch.Preparation
 
         private void UpdateDebugOverlay()
         {
+            bool visible = showDebugOverlay &&
+                (DebugEnabled || FruitCatchOperatorSettings.HasOverride("prep.showDebugOverlay"));
             if (debugOverlayRoot != null)
-                debugOverlayRoot.SetActive(DebugEnabled && showDebugOverlay);
+                debugOverlayRoot.SetActive(visible);
 
-            if (debugText == null || !DebugEnabled || !showDebugOverlay)
+            if (debugText == null || !visible)
                 return;
 
             string stepName = steps.Count > 0 && currentStepIndex < steps.Count

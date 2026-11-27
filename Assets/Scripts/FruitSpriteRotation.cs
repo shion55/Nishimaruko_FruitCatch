@@ -22,6 +22,7 @@ public sealed class FruitSpriteRotation : MonoBehaviour
 
     private void Update()
     {
-        transform.Rotate(0f, 0f, degreesPerSecond * Time.deltaTime, Space.Self);
+        if (FruitCatchOperatorSettings.Enabled("visual.rotation"))
+            transform.Rotate(0f, 0f, degreesPerSecond * Time.deltaTime, Space.Self);
     }
 }

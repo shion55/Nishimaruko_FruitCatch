@@ -284,7 +284,8 @@ public sealed class FeverPresentationController : MonoBehaviour
     {
         if (auroraRenderer == null || auroraCamera == null)
             return;
-        float alpha = auroraOpacity * Mathf.SmoothStep(0f, 1f, auroraFade);
+        float alpha = FruitCatchOperatorSettings.Enabled("visual.rainbow")
+            ? auroraOpacity * Mathf.SmoothStep(0f, 1f, auroraFade) : 0f;
         auroraRenderer.enabled = alpha > 0f;
         if (alpha <= 0f)
             return;

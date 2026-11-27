@@ -33,7 +33,6 @@ namespace FruitCatch.Preparation
         private PreparationOvalGraphic recognition;
         private bool voiceMusicPlaying;
         private bool voiceFeedbackRequested;
-        private const string MicrophonePreferenceKey = "FruitCatch.SelectedMicrophone";
 
         public bool IsVoiceDetected => detected;
 
@@ -53,10 +52,6 @@ namespace FruitCatch.Preparation
                 restScale = eaterImage.transform.localScale;
                 BuildFeedback();
             }
-            string saved = PlayerPrefs.GetString(MicrophonePreferenceKey, "");
-            if (microphone != null && !string.IsNullOrEmpty(saved) &&
-                System.Array.IndexOf(Microphone.devices, saved) >= 0)
-                microphone.SelectMicrophone(saved);
             RefreshMicrophoneLabel();
         }
 
@@ -67,16 +62,12 @@ namespace FruitCatch.Preparation
             if (devices.Length > 0)
             {
                 int next = (System.Array.IndexOf(devices, microphone.ActiveDeviceName) + 1) % devices.Length;
-                if (microphone.SelectMicrophone(devices[next]))
-                {
-                    PlayerPrefs.SetString(MicrophonePreferenceKey, devices[next]);
-                    PlayerPrefs.Save();
-                }
+                FruitCatchOperatorSettings.SelectMicrophone(devices[next]);
             }
             RefreshMicrophoneLabel();
         }
 
-        private void RefreshMicrophoneLabel()
+        internal void RefreshMicrophoneLabel()
         {
             string label = microphone != null && microphone.IsCapturing ?
                 "マイク切替  " + microphone.ActiveDeviceName : "マイクを接続して、ここを押してね";

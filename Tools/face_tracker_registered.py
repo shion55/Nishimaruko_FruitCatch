@@ -80,6 +80,7 @@ class TrackingState:
     registration_id: str = ""
     guide_region: tuple[float, float, float, float] | None = None
     hold_elapsed: float = 0.0
+    hold_seconds: float = HOLD_SECONDS
     hold_last_valid: float | None = None
     missing_since: float | None = None
     hold_face: Observation | None = None
@@ -98,6 +99,7 @@ class TrackingState:
     def clear(self) -> None:
         self.registration_id = ""
         self.guide_region = None
+        self.hold_seconds = HOLD_SECONDS
         self.pending_register = False
         self.auto_register = False
         self.active = False
@@ -181,9 +183,12 @@ def read_commands(command_sock: socket.socket, state: TrackingState, status_sock
         if command.startswith("AUTO_REGION "):
             parts = command.split()
             try:
-                if len(parts) != 6 or len(parts[1]) != 32 or any(c not in "0123456789ABCDEF" for c in parts[1]):
+                if len(parts) not in (6, 7) or len(parts[1]) != 32 or any(c not in "0123456789ABCDEF" for c in parts[1]):
                     raise ValueError("Invalid registration id")
-                region = tuple(float(value) for value in parts[2:])
+                region = tuple(float(value) for value in parts[2:6])
+                hold_seconds = float(parts[6]) if len(parts) == 7 else HOLD_SECONDS
+                if len(parts) == 7 and not 0.1 <= hold_seconds <= 15.0:
+                    raise ValueError("Invalid registration hold")
                 x, y, w, h = region
                 if (not all(math.isfinite(v) for v in region) or
                         x < 0 or y < 0 or w <= 0 or h <= 0 or x + w > 1.001 or y + h > 1.001):
@@ -198,6 +203,7 @@ def read_commands(command_sock: socket.socket, state: TrackingState, status_sock
             changed = True
             state.registration_id = parts[1]
             state.guide_region = region
+            state.hold_seconds = hold_seconds
             state.pending_register = True
             state.auto_register = True
             state.hint = "NO_FACE"
@@ -350,7 +356,7 @@ def process_registration(
         # lower-spec PCs. A long stall cannot count as several unseen seconds.
         state.hold_elapsed += min(gap, DETECTION_GRACE_SECONDS)
     state.hold_last_valid = now
-    state.progress = min(1.0, state.hold_elapsed / HOLD_SECONDS)
+    state.progress = min(1.0, state.hold_elapsed / state.hold_seconds)
     state.hint = "HOLD"
     send_status(status_sock, state, "HOLD")
     if state.progress >= 1.0:
@@ -576,7 +582,8 @@ def run():
         camera = LatestCamera(open_selected)
         stream = PreviewStream(camera)
         try:
-            with PreviewServer((UNITY_IP, PREVIEW_PORT), make_preview_handler(stream)) as server:
+            handler = make_preview_handler(stream, extra_headers={"X-Registration-Hold-Seconds": str(HOLD_SECONDS)})
+            with PreviewServer((UNITY_IP, PREVIEW_PORT), handler) as server:
                 camera.start()
                 model_start = time.monotonic()
                 ensure_models(download=not os.environ.get("FRUITCATCH_LAUNCH_TOKEN"))

@@ -1,0 +1,15 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 89d1f8ff23fb4830b08e990e1d99d9a0, type: 3}
+  m_Name: FruitCatchOperatorFont
+  m_EditorClassIdentifier: Assembly-CSharp::FruitCatchOperatorFont
+  sourceFont: {fileID: 12800000, guid: f20aec545a3c49ed8014897fcb23d1ea, type: 3}

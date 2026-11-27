@@ -23,6 +23,9 @@ public class FaceMovementController : MonoBehaviour
     private float lastReceivedTime;
     private bool hasReceivedFace;
     private bool timedOut;
+    internal bool HasReceiver => receiver != null;
+    internal float? LastPositionAge => hasReceivedFace ? Time.unscaledTime - lastReceivedTime : null;
+    internal void ForgetPosition() => hasReceivedFace = false;
 
     public bool movefacetoggle = true;
     void OnEnable()
