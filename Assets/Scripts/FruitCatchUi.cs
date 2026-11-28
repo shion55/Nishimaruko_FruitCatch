@@ -1,3 +1,4 @@
+using FruitCatch.Preparation;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -7,6 +8,16 @@ internal static class FruitCatchUi
     public static readonly Color Ink = new Color32(35, 24, 62, 255);
     public static readonly Color Cream = new Color32(255, 248, 225, 255);
     public static readonly Color Gold = new Color32(255, 186, 69, 255);
+    public static readonly Color DeepGreen = new Color32(36, 79, 54, 255);
+    public static readonly Color Coral = new Color32(188, 83, 68, 255);
+
+    public static void ApplyBannerColors(RoundedDashedPanelGraphic plate, Color background, Color foreground)
+    {
+        background.a = plate.FillColor.a;
+        foreground.a = plate.BorderColor.a;
+        if (plate.FillColor != background) plate.FillColor = background;
+        if (plate.BorderColor != foreground) plate.BorderColor = foreground;
+    }
 
     public static RectTransform Rect(string name, Transform parent, Vector2 min, Vector2 max)
     {

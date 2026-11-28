@@ -173,7 +173,7 @@ public static class FruitCatchSessionInstaller
         ApplyAnnotatedText(scene, "04_VoiceAndEater", "VoiceActionPrompt",
             "マイクにむかって、[声|こえ]を[出|だ]してね", font);
         ApplyAnnotatedText(scene, "04_VoiceAndEater", "EaterExplanation",
-            "[声|こえ]を[出|だ]すと[口|くち]をひらいて\nくだものを[食|た]べられるよ\n\n[声|こえ]の[高|たか]さをかえると\nなにかがかわるかも！", font);
+            "[声|こえ]を[出|だ]すと[口|くち]をひらいて\nくだものを[食|た]べられるよ\n\n[声|こえ]の[高|たか]さを[変|か]えると\nくだもののはやさが[変|か]わるよ", font);
         ApplyAnnotatedText(scene, "05_Items", "Title", "アイテムのせつめい", font);
         ApplyAnnotatedText(scene, "05_Items/Fruit", "Description", "くだもの\n\n[食|た]べると\nとく[点|てん]アップ！", font);
         ApplyAnnotatedText(scene, "05_Items/Bug", "Description", "むし\n\n[食|た]べると\nとく[点|てん]ダウン…", font);

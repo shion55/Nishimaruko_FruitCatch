@@ -85,6 +85,16 @@ namespace FruitCatch.Preparation
             AnnotatedText = value;
         }
 
+        internal void SetDisplayColor(Color color)
+        {
+            if (baseText == null) baseText = GetComponent<TMP_Text>();
+            if (baseText != null && baseText.color != color) baseText.color = color;
+            if (rubyColor == color) return;
+            rubyColor = color;
+            foreach (TMP_Text ruby in rubyObjects)
+                if (ruby != null) ruby.color = color;
+        }
+
         public void RefreshPreview()
         {
             QueueRebuild();

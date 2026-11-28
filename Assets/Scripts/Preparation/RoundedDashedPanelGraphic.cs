@@ -46,7 +46,6 @@ namespace FruitCatch.Preparation
 
             if (gapLength <= 0f && borderThickness > 0f && borderColor.a > 0f)
             {
-                AddFill(vertexHelper, rect, radius, perimeterLength, borderColor);
                 Rect inset = Rect.MinMaxRect(rect.xMin + borderThickness,
                     rect.yMin + borderThickness + bottomBorderExtra,
                     rect.xMax - borderThickness, rect.yMax - borderThickness);
@@ -54,13 +53,47 @@ namespace FruitCatch.Preparation
                 {
                     float innerRadius = Mathf.Min(Mathf.Max(0f, radius - borderThickness),
                         Mathf.Min(inset.width, inset.height) * 0.5f);
+                    if (fillColor.a < 1f)
+                    {
+                        AddTranslucentPanel(vertexHelper, rect, radius, perimeterLength, inset, innerRadius);
+                        return;
+                    }
+                    AddFill(vertexHelper, rect, radius, perimeterLength, borderColor);
                     AddFill(vertexHelper, inset, innerRadius, GetPerimeterLength(inset, innerRadius), fillColor);
                 }
+                else
+                    AddFill(vertexHelper, rect, radius, perimeterLength, borderColor);
                 return;
             }
 
             AddFill(vertexHelper, rect, radius, perimeterLength, fillColor);
             AddDashedBorder(vertexHelper, rect, radius, perimeterLength);
+        }
+
+        private void AddTranslucentPanel(VertexHelper vertices, Rect rect, float radius, float perimeter,
+            Rect inset, float innerRadius)
+        {
+            // Keep the border out of the fill so the background shows through the center.
+            float innerPerimeter = GetPerimeterLength(inset, innerRadius);
+            int points = Mathf.Max(12, Mathf.CeilToInt(perimeter / Mathf.Max(2f, curveStep)));
+            int center = vertices.currentVertCount;
+            vertices.AddVert(inset.center, fillColor, Vector2.zero);
+            for (int i = 0; i < points; i++)
+            {
+                float fraction = i / (float)points;
+                Vector2 inner = GetPointAtDistance(inset, innerRadius, innerPerimeter * fraction);
+                vertices.AddVert(GetPointAtDistance(rect, radius, perimeter * fraction), borderColor, Vector2.zero);
+                vertices.AddVert(inner, borderColor, Vector2.zero);
+                vertices.AddVert(inner, fillColor, Vector2.zero);
+            }
+            for (int i = 0; i < points; i++)
+            {
+                int current = center + 1 + i * 3;
+                int next = center + 1 + (i + 1) % points * 3;
+                vertices.AddTriangle(current, next, next + 1);
+                vertices.AddTriangle(current, next + 1, current + 1);
+                vertices.AddTriangle(center, current + 2, next + 2);
+            }
         }
 
         private void AddFill(VertexHelper vertexHelper, Rect rect, float radius, float perimeterLength, Color tint)

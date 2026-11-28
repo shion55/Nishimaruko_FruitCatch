@@ -214,7 +214,7 @@ public static class PreparationSceneBuilder
         GameObject panel = CreatePanel(parent, "04_VoiceAndEater", true);
         CreateSprite(panel.transform, "EaterImage", eater, new Vector2(0.08f, 0.25f), new Vector2(0.43f, 0.78f));
         CreateText(panel.transform, "EaterExplanation",
-            "こえをだすと口をひらいて\nくだものをたべられるよ\n\nこえの高さをかえると\nなにかがかわるかも！",
+            "こえをだすと口をひらいて\nくだものをたべられるよ\n\n声の高さを変えると\nくだもののはやさが変わるよ",
             font, 44f, TextAlignmentOptions.Center,
             new Vector2(0.43f, 0.13f), new Vector2(0.94f, 0.72f));
         return panel;

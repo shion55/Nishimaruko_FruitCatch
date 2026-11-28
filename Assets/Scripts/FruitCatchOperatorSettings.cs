@@ -11,6 +11,9 @@ internal static class FruitCatchOperatorSettings
 {
     internal const int Balance = 1, TimeTab = 2, Audio = 3, Mic = 4, Visual = 5, SystemTab = 6;
     internal const string MicrophoneKey = "FruitCatch.SelectedMicrophone";
+    internal const string BannerColorGroup = "バナー配色";
+    private const string BannerBackgroundKey = "visual.bannerBackground";
+    private const string BannerForegroundKey = "visual.bannerForeground";
 
     [Serializable] private sealed class Entry { public string key; public float value; }
     [Serializable] private sealed class Document
@@ -28,7 +31,7 @@ internal static class FruitCatchOperatorSettings
         public string Key, Label, Group, ClipField;
         public int Tab, Part;
         public float Min, Max, Initial;
-        public bool Switch, Integer, NextRun;
+        public bool Switch, Integer, NextRun, IsColor;
         [NonSerialized] internal object Target;
         [NonSerialized] internal FieldInfo Field;
         [NonSerialized] internal List<FaceMovementController> TrackingTargets;
@@ -75,6 +78,9 @@ internal static class FruitCatchOperatorSettings
 #endif
     private static float saveAt;
     private static string microphone;
+    private static FruitCatchGameSession bannerGame;
+    private static RoundedDashedPanelGraphic preparationBanner;
+    private static FuriganaText preparationBannerText;
     internal static bool Muted { get; private set; }
     internal static int CompletedPlays { get; private set; }
     internal static string SaveError { get; private set; }
@@ -88,6 +94,19 @@ internal static class FruitCatchOperatorSettings
     internal static bool Enabled(string key) => Get(key) != 0;
     internal static bool HasSetting(string key) => settings.ContainsKey(key);
     internal static bool HasOverride(string key) => values.ContainsKey(key);
+    internal static Color32 BannerBackground => GetColor(settings[BannerBackgroundKey]);
+    internal static Color32 BannerForeground => GetColor(settings[BannerForegroundKey]);
+
+    // RGB uses 24 bits, which fit exactly in the existing single-precision settings format.
+    private static int PackColor(Color32 color) => color.r << 16 | color.g << 8 | color.b;
+
+    internal static Color32 GetColor(Setting setting)
+    {
+        int rgb = (int)setting.Value;
+        return new Color32((byte)(rgb >> 16), (byte)(rgb >> 8 & 255), (byte)(rgb & 255), 255);
+    }
+
+    internal static void SetColor(Setting setting, Color32 color) => Set(setting, PackColor(color));
     internal static AudioClip GetClip(Setting setting) => setting.Target?.GetType()
         .GetField(setting.ClipField, BindingFlags.Instance | BindingFlags.NonPublic)
         ?.GetValue(setting.Target) as AudioClip;
@@ -102,6 +121,9 @@ internal static class FruitCatchOperatorSettings
         pitchAssets.Clear();
         loaded = dirty = Muted = false;
         microphone = null;
+        bannerGame = null;
+        preparationBanner = null;
+        preparationBannerText = null;
         SaveError = null;
         CompletedPlays = 0;
     }
@@ -140,7 +162,7 @@ internal static class FruitCatchOperatorSettings
     {
         if (float.IsInfinity(value) || float.IsNaN(value)) return;
         value = setting.Normalize(value);
-        if (Mathf.Approximately(value, setting.Value)) return;
+        if (setting.IsColor ? value == setting.Value : Mathf.Approximately(value, setting.Value)) return;
         values[setting.Key] = value;
         ConstrainPairs(setting.Key);
         ApplyLive();
@@ -354,6 +376,14 @@ internal static class FruitCatchOperatorSettings
             pitch.Target is MicrophoneAnalysis input && input != null)
             input.RefreshPitchRange();
         RefreshMaster();
+        Color background = BannerBackground;
+        Color foreground = BannerForeground;
+        if (bannerGame != null)
+            bannerGame.ApplyAnnouncementColors(background, foreground);
+        if (preparationBanner != null)
+            FruitCatchUi.ApplyBannerColors(preparationBanner, background, foreground);
+        if (preparationBannerText != null)
+            preparationBannerText.SetDisplayColor(foreground);
     }
 
     private static void Option(int tab, string group, string key, string label, float initial,
@@ -400,6 +430,8 @@ internal static class FruitCatchOperatorSettings
         Option(Visual, "画面演出", "visual.ripples", "口元から出る波紋", 1, toggle: true);
         Option(Visual, "画面演出", "visual.rotation", "落下中のアイテムの回転", 1, toggle: true);
         Option(Visual, "画面演出", "visual.rare", "レアフルーツのきらめき", 1, toggle: true);
+        AddColorOption(BannerBackgroundKey, "背景色", FruitCatchUi.Cream);
+        AddColorOption(BannerForegroundKey, "文字・枠の色", FruitCatchUi.DeepGreen);
         Option(SystemTab, "デバッグ", "system.mouse", "マウスデバッグ", 0, toggle: true);
         Option(TimeTab, "BGM連動", "time.feverSync", "フィーバーをBGMの長さに合わせる", 1, toggle: true, next: true);
         Option(TimeTab, "BGM連動", "time.resultsSync", "結果発表をBGMの長さに合わせる", 1, toggle: true, next: true);
@@ -408,9 +440,19 @@ internal static class FruitCatchOperatorSettings
         Option(TimeTab, "顔登録", "time.registrationHold", "顔を保持する時間（秒、0＝既定）", 0, 15);
     }
 
+    private static void AddColorOption(string key, string label, Color32 initial)
+    {
+        Option(Visual, BannerColorGroup, key, label, PackColor(initial), 0xFFFFFF);
+        settings[key].IsColor = true;
+        settings[key].Integer = true;
+    }
+
     internal static void BindScene(Scene scene)
     {
         if (!scene.IsValid() || !scene.isLoaded) return;
+        bannerGame = null;
+        preparationBanner = null;
+        preparationBannerText = null;
         foreach (GameObject root in scene.GetRootGameObjects())
             foreach (MonoBehaviour component in root.GetComponentsInChildren<MonoBehaviour>(true))
                 BindComponent(component);
@@ -442,7 +484,8 @@ internal static class FruitCatchOperatorSettings
 #endif
                 _ = Pitch(pitch.OperatorPitchSettings);
                 break;
-            case FruitCatchGameSession:
+            case FruitCatchGameSession session:
+                bannerGame = session;
                 Add(TimeTab, "本編", "game", "gameDuration", "制限時間（秒）", 1, 300, true);
                 Add(TimeTab, "本編", "game", "startDisplayDuration", "開始演出（秒）", .1f, 15, true);
                 Add(TimeTab, "本編", "game", "finishDisplayDuration", "終了演出（秒）", .1f, 15, true);
@@ -513,6 +556,13 @@ internal static class FruitCatchOperatorSettings
                 Add(TimeTab, "準備・練習", "face", "carrierHoldSeconds", "変身後の待機（秒）", 0, 30);
                 break;
             case PreparationFlowController flow:
+                Transform startBanner = flow.OperatorSteps.FirstOrDefault(step =>
+                    step.RequiredSignal == PreparationSignal.HandsRaised)?.Panel?.transform.Find("HandsStartBanner");
+                if (startBanner != null)
+                {
+                    preparationBanner = startBanner.GetComponent<RoundedDashedPanelGraphic>();
+                    preparationBannerText = startBanner.GetComponentInChildren<FuriganaText>(true);
+                }
                 Add(TimeTab, "準備・練習", "prep", "fadeDuration", "画面切替のフェード（秒）", 0, 10);
                 Add(TimeTab, "準備・練習", "prep", "countdownInterval", "カウントダウン間隔（秒）", .05f, 10);
                 Add(SystemTab, "デバッグ", "prep", "showDebugOverlay", "既存のデバッグオーバーレイ");

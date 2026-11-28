@@ -26,8 +26,9 @@ public sealed class ScoreMessageTier
 public sealed class FruitCatchGameSession : MonoBehaviour
 {
     private CanvasGroup announcementBanner;
+    private RectTransform announcementPlate;
+    private RoundedDashedPanelGraphic announcementPlateGraphic;
     private FruitCatchRanking ranking;
-    private readonly RectTransform[] announcementSparkles = new RectTransform[8];
 
     [Header("Game References")]
     [SerializeField] private GameManager gameManager;
@@ -66,8 +67,6 @@ public sealed class FruitCatchGameSession : MonoBehaviour
     [Header("Colors")]
     [SerializeField] private Color timerNormalColor = Color.white;
     [SerializeField] private Color timerWarningColor = new Color(1f, 0.2f, 0.15f);
-    [SerializeField] private Color startColor = new Color(1f, 0.5f, 0.12f);
-    [SerializeField] private Color finishColor = new Color(0.45f, 0.85f, 1f);
 
     [Header("Temporary score messages (editable)")]
     [SerializeField] private ScoreMessageTier[] scoreMessageTiers =
@@ -214,7 +213,7 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         if (gameManager != null)
             gameManager.ResetGameResults();
 
-        yield return ShowAnnouncement("スタート！", startColor, startDisplayDuration);
+        yield return ShowAnnouncement(isStart: true, duration: startDisplayDuration);
 
         ElapsedTime = 0f;
         IsPlaying = true;
@@ -261,7 +260,7 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         RemoveFallingItems();
         UpdateTimer(0f, true);
         audio.PlayFinish();
-        yield return ShowAnnouncement("おわり！", finishColor, finishDisplayDuration);
+        yield return ShowAnnouncement(isStart: false, duration: finishDisplayDuration);
         float resultsBgmDuration = audio.PlayResultsBgm();
         if (resultsBgmDuration > 0f && resultsSync)
         {
@@ -290,28 +289,61 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         RectTransform textRect = announcementText.rectTransform;
         int sibling = textRect.GetSiblingIndex();
         RectTransform banner = FruitCatchUi.Rect("AnnouncementBanner", textRect.parent,
-            new Vector2(0.12f, 0.35f), new Vector2(0.88f, 0.65f));
+            new Vector2(0.18f, 0.38f), new Vector2(0.82f, 0.62f));
         banner.SetSiblingIndex(sibling);
         announcementBanner = banner.gameObject.AddComponent<CanvasGroup>();
         announcementBanner.blocksRaycasts = false;
 
+        Vector2 center = Vector2.one * 0.5f;
+        announcementPlate = FruitCatchUi.Rect("AnnouncementPlate", banner, center, center);
+        RectTransform shadow = FruitCatchUi.Rect("Shadow", announcementPlate, Vector2.zero, Vector2.one);
+        shadow.anchoredPosition = Vector2.down * 10f;
+        AddRoundedShape(shadow, new Color32(36, 79, 54, 165), 48f);
+        RectTransform plate = FruitCatchUi.Rect("Plate", announcementPlate, Vector2.zero, Vector2.one);
+        announcementPlateGraphic = AddRoundedShape(plate, FruitCatchUi.Cream, 48f, 5f);
+
         textRect.SetParent(banner, false);
-        FruitCatchUi.SetBounds(textRect, new Vector2(0.045f, 0.08f), new Vector2(0.955f, 0.92f));
+        FruitCatchUi.SetBounds(textRect, new Vector2(0.17f, 0.12f), new Vector2(0.83f, 0.88f));
         announcementText.alignment = TextAlignmentOptions.Center;
         announcementText.enableAutoSizing = true;
         announcementText.fontSizeMin = 20f;
         announcementText.fontSizeMax = 230f;
         announcementText.margin = Vector4.zero;
         announcementText.textWrappingMode = TextWrappingModes.NoWrap;
-        announcementText.outlineColor = new Color32(23, 15, 42, 255);
-        announcementText.outlineWidth = 0.22f;
+        announcementText.enableVertexGradient = false;
+        announcementText.color = FruitCatchUi.DeepGreen;
+        announcementText.fontStyle |= FontStyles.Bold;
+        announcementText.outlineWidth = 0f;
         announcementText.gameObject.SetActive(true);
-        for (int i = 0; i < announcementSparkles.Length; i++)
-        {
-            announcementSparkles[i] = CreateSparkle("AnnouncementSparkle_" + i, banner, 24f);
-            announcementSparkles[i].gameObject.SetActive(false);
-        }
         banner.gameObject.SetActive(false);
+    }
+
+    private Vector2 FitAnnouncementPlate(RectTransform banner)
+    {
+        announcementText.ForceMeshUpdate();
+        Bounds textBounds = announcementText.textBounds;
+        RectTransform textRect = announcementText.rectTransform;
+        announcementPlate.localPosition = banner.InverseTransformPoint(textRect.TransformPoint(textBounds.center));
+        announcementPlate.sizeDelta = (Vector2)textBounds.size + new Vector2(80f, 28f);
+        return textRect.rect.size;
+    }
+
+    internal void ApplyAnnouncementColors(Color background, Color foreground)
+    {
+        if (announcementPlateGraphic == null) return;
+        FruitCatchUi.ApplyBannerColors(announcementPlateGraphic, background, foreground);
+        if (announcementText.color != foreground) announcementText.color = foreground;
+    }
+
+    private static RoundedDashedPanelGraphic AddRoundedShape(RectTransform rect, Color fill, float radius, float border = 0f)
+    {
+        var shape = rect.gameObject.AddComponent<RoundedDashedPanelGraphic>();
+        shape.FillColor = fill;
+        shape.CornerRadius = radius;
+        shape.BorderThickness = border;
+        shape.BorderColor = FruitCatchUi.DeepGreen;
+        shape.GapLength = 0f;
+        return shape;
     }
 
     private void UpdateTimer(float seconds, bool warning)
@@ -334,9 +366,8 @@ public sealed class FruitCatchGameSession : MonoBehaviour
         timerText.color = color;
     }
 
-    private IEnumerator ShowAnnouncement(string message, Color color, float duration)
+    private IEnumerator ShowAnnouncement(bool isStart, float duration)
     {
-        bool isStart = message == "スタート！";
         if (announcementBanner == null)
         {
             if (isStart)
@@ -345,26 +376,15 @@ public sealed class FruitCatchGameSession : MonoBehaviour
             yield break;
         }
 
-        announcementText.text = message;
-        announcementText.color = Color.white;
-        announcementText.enableVertexGradient = true;
-        announcementText.colorGradient = isStart
-            ? new VertexGradient(new Color32(255, 250, 145, 255), new Color32(255, 225, 75, 255),
-                new Color32(255, 151, 35, 255), new Color32(255, 108, 35, 255))
-            : new VertexGradient(new Color32(184, 246, 255, 255), new Color32(135, 215, 255, 255),
-                new Color32(122, 145, 255, 255), new Color32(178, 116, 255, 255));
-        Color sparkleColor = isStart ? new Color32(255, 217, 75, 255) : new Color32(142, 226, 255, 255);
-        foreach (RectTransform sparkle in announcementSparkles)
-        {
-            foreach (Image image in sparkle.GetComponentsInChildren<Image>())
-                image.color = sparkleColor;
-        }
+        announcementText.text = isStart ? "スタート！" : "そこまで！";
+        var banner = (RectTransform)announcementBanner.transform;
+        banner.localScale = Vector3.one;
+        banner.anchoredPosition = isStart ? Vector2.zero : Vector2.down * 16f;
+        announcementBanner.alpha = 1f;
         announcementBanner.gameObject.SetActive(true);
+        Vector2 textAreaSize = FitAnnouncementPlate(banner);
         if (isStart)
         {
-            announcementBanner.alpha = 1f;
-            announcementBanner.transform.localScale = Vector3.one;
-            announcementText.ForceMeshUpdate();
             // Give the active banner a frame to render before starting the cue.
             yield return null;
             FruitCatchAudioManager.Instance.PlayStart();
@@ -374,30 +394,19 @@ public sealed class FruitCatchGameSession : MonoBehaviour
 
         while (elapsed < actualDuration)
         {
+            if (announcementText.rectTransform.rect.size != textAreaSize)
+                textAreaSize = FitAnnouncementPlate(banner);
             elapsed += Time.unscaledDeltaTime;
             float t = Mathf.Clamp01(elapsed / actualDuration);
-            float entrance = Mathf.Clamp01(elapsed / (isStart ? 0.2f : 0.34f));
-            float scale = isStart
-                ? 1f + 0.06f * Mathf.Sin(entrance * Mathf.PI)
-                : Mathf.Lerp(1.18f, 1f, entrance) - 0.06f * Mathf.Sin(entrance * Mathf.PI);
-            announcementBanner.transform.localScale = Vector3.one * scale;
+            float entrance = Mathf.Clamp01(elapsed / (isStart ? 0.24f : 0.18f));
+            if (isStart)
+                banner.localScale = Vector3.one * (1f + 0.08f * Mathf.Sin(entrance * Mathf.PI));
+            else
+                banner.anchoredPosition = Vector2.down * Mathf.SmoothStep(16f, 0f, entrance);
             announcementBanner.alpha = 1f - Mathf.InverseLerp(0.88f, 1f, t);
-            float sparkleAmount = Mathf.Sin(Mathf.Clamp01(t / 0.42f) * Mathf.PI);
-            for (int i = 0; i < announcementSparkles.Length; i++)
-            {
-                RectTransform sparkle = announcementSparkles[i];
-                float angle = i * Mathf.PI * 2f / announcementSparkles.Length;
-                sparkle.gameObject.SetActive(sparkleAmount > 0.01f);
-                sparkle.anchoredPosition = new Vector2(Mathf.Cos(angle) * 300f,
-                    Mathf.Sin(angle) * 105f) * Mathf.Lerp(0.55f, 1f, entrance);
-                sparkle.localRotation = Quaternion.Euler(0f, 0f, i * 45f + entrance * 90f);
-                sparkle.localScale = Vector3.one * sparkleAmount * (i % 2 == 0 ? 1f : 0.7f);
-            }
             yield return null;
         }
 
-        foreach (RectTransform sparkle in announcementSparkles)
-            sparkle.gameObject.SetActive(false);
         announcementBanner.gameObject.SetActive(false);
     }
 

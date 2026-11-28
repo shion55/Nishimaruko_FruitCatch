@@ -3,7 +3,7 @@
     {"Key": "pitchController.maxFallSpeed", "Label": "速度制御後の落下速度上限", "Group": "出現・落下", "Tab": 1, "Part": -1, "Min": 0.0, "Max": 40.0, "Initial": 8, "Switch": false, "Integer": false, "NextRun": true},
     {"Key": "pitchController.applyToFallingObjects", "Label": "本編の落下速度にピッチを適用", "Group": "落下速度とピッチの対応", "Tab": 4, "Part": -1, "Min": 0, "Max": 1, "Initial": 1, "Switch": true, "Integer": false, "NextRun": false},
     {"Key": "game.gameDuration", "Label": "制限時間（秒）", "Group": "本編", "Tab": 2, "Part": -1, "Min": 1.0, "Max": 300.0, "Initial": 50, "Switch": false, "Integer": false, "NextRun": true},
-    {"Key": "game.startDisplayDuration", "Label": "開始演出（秒）", "Group": "本編", "Tab": 2, "Part": -1, "Min": 0.1, "Max": 15.0, "Initial": 3, "Switch": false, "Integer": false, "NextRun": true},
+    {"Key": "game.startDisplayDuration", "Label": "開始演出（秒）", "Group": "本編", "Tab": 2, "Part": -1, "Min": 0.1, "Max": 15.0, "Initial": 2, "Switch": false, "Integer": false, "NextRun": true},
     {"Key": "game.finishDisplayDuration", "Label": "終了演出（秒）", "Group": "本編", "Tab": 2, "Part": -1, "Min": 0.1, "Max": 15.0, "Initial": 3, "Switch": false, "Integer": false, "NextRun": true},
     {"Key": "game.warningStartSeconds", "Label": "警告を始める残り時間（秒）", "Group": "本編", "Tab": 2, "Part": -1, "Min": 0.0, "Max": 300.0, "Initial": 10, "Switch": false, "Integer": false, "NextRun": true},
     {"Key": "game.resultDisplayDuration", "Label": "結果発表の固定時間（秒）", "Group": "本編", "Tab": 2, "Part": -1, "Min": 0.1, "Max": 120.0, "Initial": 10, "Switch": false, "Integer": false, "NextRun": true},

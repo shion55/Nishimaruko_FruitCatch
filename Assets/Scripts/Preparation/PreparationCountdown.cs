@@ -20,11 +20,16 @@ namespace FruitCatch.Preparation
             root.sizeDelta = Vector2.one * diameter;
             root.anchoredPosition = large ? Vector2.zero : new Vector2(-90f, -86f);
 
-            AddOval("Disc", FruitCatchUi.Ink, true, 0f);
-            AddOval("Track", new Color32(115, 92, 142, 255), false, stroke);
-            ring = AddOval("Sweep", FruitCatchUi.Gold, false, stroke);
-            orbitRadius = (diameter - stroke) * 0.5f;
-            var head = AddOval("Spark", FruitCatchUi.Cream, true, 0f);
+            float ringInset = large ? 12f : 0f;
+            Color numberColor = large ? FruitCatchUi.DeepGreen : FruitCatchUi.Cream;
+            AddOval("Disc", large ? FruitCatchUi.Cream : FruitCatchUi.Ink, true, 0f);
+            if (large)
+                AddOval("Rim", new Color32(82, 131, 74, 255), false, 4f);
+            AddOval("Track", large ? new Color32(219, 232, 202, 255) : new Color32(115, 92, 142, 255),
+                false, stroke, ringInset);
+            ring = AddOval("Sweep", large ? FruitCatchUi.Coral : FruitCatchUi.Gold, false, stroke, ringInset);
+            orbitRadius = (diameter - stroke) * 0.5f - ringInset;
+            var head = AddOval("Spark", large ? FruitCatchUi.Gold : FruitCatchUi.Cream, true, 0f);
             spark = head.rectTransform;
             FruitCatchUi.SetBounds(spark, Vector2.one * 0.5f, Vector2.one * 0.5f);
             spark.sizeDelta = Vector2.one * stroke * 1.7f;
@@ -32,16 +37,21 @@ namespace FruitCatch.Preparation
             Vector2 min = new Vector2(0.15f, 0.12f);
             Vector2 max = new Vector2(0.85f, 0.88f);
             number = existingNumber != null ? existingNumber :
-                FruitCatchUi.Label("Seconds", root, min, max, font, FruitCatchUi.Cream, 70f, "");
+                FruitCatchUi.Label("Seconds", root, min, max, font, numberColor, 70f, "");
             if (existingNumber != null)
             {
                 number.rectTransform.SetParent(root, false);
                 FruitCatchUi.SetBounds(number.rectTransform, min, max);
                 number.alignment = TextAlignmentOptions.Center;
-                number.color = FruitCatchUi.Cream;
+                number.color = numberColor;
                 number.enableAutoSizing = true;
                 number.fontSizeMin = 18f;
                 number.fontSizeMax = 174f;
+            }
+            if (large)
+            {
+                number.enableVertexGradient = false;
+                number.fontStyle |= FontStyles.Bold;
             }
             Hide();
         }
@@ -66,10 +76,12 @@ namespace FruitCatch.Preparation
 
         public void Hide() => root.gameObject.SetActive(false);
 
-        private PreparationOvalGraphic AddOval(string name, Color color, bool filled, float thickness)
+        private PreparationOvalGraphic AddOval(string name, Color color, bool filled, float thickness, float inset = 0f)
         {
-            var oval = FruitCatchUi.Rect(name, root, Vector2.zero, Vector2.one)
-                .gameObject.AddComponent<PreparationOvalGraphic>();
+            RectTransform rect = FruitCatchUi.Rect(name, root, Vector2.zero, Vector2.one);
+            rect.offsetMin = Vector2.one * inset;
+            rect.offsetMax = -Vector2.one * inset;
+            var oval = rect.gameObject.AddComponent<PreparationOvalGraphic>();
             oval.color = color;
             oval.filled = filled;
             oval.thickness = thickness;

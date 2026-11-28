@@ -15,6 +15,7 @@
 *.meta text eol=lf
 *.inputactions text eol=lf
 *.scenetemplate text eol=lf
+Tools/Distribution/macOS/*.command text eol=lf
 
 *.bat text eol=crlf
 *.cmd text eol=crlf

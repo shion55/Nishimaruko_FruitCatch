@@ -6,6 +6,7 @@ from collections import deque
 import json
 from pathlib import Path
 import socket
+import sys
 import threading
 import time
 
@@ -24,8 +25,9 @@ MAX_RESOLUTIONS = ((7680, 4320), (5120, 2880), (4096, 2160), (3840, 2160), (3264
                    (1280, 720), (1024, 768), (800, 600), (640, 480))
 FORMATS = ("AUTO", "MJPG", "YUY2", "UYVY", "DEFAULT")
 FOURCC_ALIASES = {"YUY2": ("YUY2", "YUYV", "YUNV"), "MJPG": ("MJPG", "JPEG")}
+DEFAULT_CAMERA_BACKEND = cv2.CAP_AVFOUNDATION if sys.platform == "darwin" else cv2.CAP_DSHOW
 DEFAULTS = {
-    "camera_name": "", "camera_index": 0, "camera_path": "", "camera_backend": cv2.CAP_DSHOW,
+    "camera_name": "", "camera_index": 0, "camera_path": "", "camera_backend": DEFAULT_CAMERA_BACKEND,
     "use_max_resolution": False, "width": 1280, "height": 720, "fps": 30,
     "video_format": "AUTO", "tracking_mode": "pose", "monitor": 0,
 }
@@ -44,6 +46,11 @@ def load_camera_config(path=CAMERA_CONFIG_PATH):
         if not isinstance(loaded, dict):
             raise ValueError("最上位はJSONオブジェクトにしてください")
         config.update(loaded)
+        if sys.platform == "darwin":
+            # DirectShow IDs and indices refer to devices on the Windows machine.
+            if str(loaded.get("camera_backend")) != str(cv2.CAP_AVFOUNDATION):
+                config.update(camera_name="", camera_index=0, camera_path="")
+            config.update(camera_backend=cv2.CAP_AVFOUNDATION, video_format="DEFAULT", use_max_resolution=False)
         for key in ("width", "height", "fps", "camera_index", "camera_backend", "monitor"):
             config[key] = int(config[key])
         if (min(config["width"], config["height"], config["fps"]) <= 0 or
@@ -61,7 +68,7 @@ def save_camera_config(config, path=CAMERA_CONFIG_PATH):
     temp.replace(path)
 
 
-def discover_cameras(backend=cv2.CAP_DSHOW):
+def discover_cameras(backend=DEFAULT_CAMERA_BACKEND):
     from cv2_enumerate_cameras import enumerate_cameras
 
     return list(enumerate_cameras(backend))
@@ -76,6 +83,9 @@ def resolve_camera(config, cameras):
         matches = [item for item in cameras if item.name.casefold() == name.casefold()]
     else:
         matches = [item for item in cameras if item.index == config["camera_index"]]
+        if (not matches and cameras and config.get("camera_backend") == cv2.CAP_AVFOUNDATION
+                and config["camera_index"] == 0):
+            matches = cameras[:1]
     if len(matches) != 1:
         raise RuntimeError(f"指定カメラが見つからないか一意ではありません ({name or config['camera_index']})。"
                            "再検索してカメラを選択してください。")
@@ -146,16 +156,20 @@ def color_frame(raw, fourcc):
 
 
 def configure_camera(index, backend, name, config, stop_event=None, preferred=None, require_mode=False):
-    if preferred is not None:
+    avfoundation = backend == cv2.CAP_AVFOUNDATION
+    if avfoundation:
+        # Let AVFoundation negotiate a native mode with the selected device.
+        require_mode = False
+    elif preferred is not None:
         try:
             log(f"[camera] Trying preview mode: {preferred}")
             return configure_camera(index, backend, name, dict(config, **preferred,
                                     use_max_resolution=False), stop_event, require_mode=True)
         except RuntimeError as exc:
             log(f"[camera] Preview mode failed; trying configured modes: {exc}")
-    use_max = config["use_max_resolution"]
+    use_max = config["use_max_resolution"] and not avfoundation
     resolutions = MAX_RESOLUTIONS if use_max else ((config["width"], config["height"]),)
-    requested_format = config["video_format"]
+    requested_format = "DEFAULT" if avfoundation else config["video_format"]
     formats = ("MJPG", "DEFAULT", "YUY2", "UYVY") if requested_format == "AUTO" else (requested_format,)
     last_error = ""
     best = None
@@ -164,20 +178,22 @@ def configure_camera(index, backend, name, config, stop_event=None, preferred=No
             if stop_event is not None and stop_event.is_set():
                 raise RuntimeError("カメラを停止しました")
             started = time.monotonic()
-            log(f"[camera] opening {name} {width}x{height}/{config['fps']}fps/{video_format}")
+            mode = "AVFoundation (カメラの標準設定)" if avfoundation else f"{width}x{height}/{config['fps']}fps/{video_format}"
+            log(f"[camera] opening {name} {mode}")
             cap = cv2.VideoCapture(index, backend)
             log(f"[camera] open {width}x{height}/{video_format}: {time.monotonic() - started:.2f}s")
             keep = False
             try:
                 if not cap.isOpened():
                     raise ValueError("カメラを開けません (他のアプリが使用していないか確認してください)")
-                cap.set(cv2.CAP_PROP_CONVERT_RGB, 1)
-                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                if video_format != "DEFAULT":
-                    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*video_format))
-                cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-                cap.set(cv2.CAP_PROP_FPS, config["fps"])
+                if not avfoundation:
+                    cap.set(cv2.CAP_PROP_CONVERT_RGB, 1)
+                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    if video_format != "DEFAULT":
+                        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*video_format))
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                    cap.set(cv2.CAP_PROP_FPS, config["fps"])
                 for attempt in range(8):
                     if stop_event is not None and stop_event.is_set():
                         raise ValueError("カメラを停止しました")

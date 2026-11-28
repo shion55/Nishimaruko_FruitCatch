@@ -330,6 +330,7 @@ internal sealed class FruitCatchOperatorPanel : MonoBehaviour
     private const int ParametersPerPage = 14;
     private const int CategoriesPerRow = 6;
     private const int ParameterHeight = 54;
+    private const int ColorParameterHeight = 94;
 
     private void BuildParameterPages()
     {
@@ -338,7 +339,7 @@ internal sealed class FruitCatchOperatorPanel : MonoBehaviour
         bool hasDevices = tab == Settings.Mic;
         var pages = new List<(string Label, Settings.Setting[] Settings)>();
         if (hasDevices) pages.Add(("入力デバイス", null));
-        if (!hasDevices && settings.Length <= ParametersPerPage && tab != Settings.Audio)
+        if (!hasDevices && settings.Length <= ParametersPerPage && tab != Settings.Audio && tab != Settings.Visual)
         {
             pages.Add((Tabs[tab], settings));
         }
@@ -399,16 +400,42 @@ internal sealed class FruitCatchOperatorPanel : MonoBehaviour
                 ? $"顔を保持する既定時間　{seconds:0.##} 秒"
                 : "顔を保持する時間の変更には対応するトラッカーが必要です。");
         }
+        if (current.Label == Settings.BannerColorGroup)
+            BuildBannerColorPreview();
 
         for (int i = 0; i < current.Settings.Length; i += 2)
         {
-            RectTransform row = Row(content, ParameterHeight);
+            int height = current.Settings[i].IsColor ? ColorParameterHeight : ParameterHeight;
+            RectTransform row = Row(content, height);
             BuildSetting(current.Settings[i], row);
             if (i + 1 < current.Settings.Length)
                 BuildSetting(current.Settings[i + 1], row);
             else
-                Layout(Node("Empty column", row), ParameterHeight, 0, 1);
+                Layout(Node("Empty column", row), height, 0, 1);
         }
+    }
+
+    private void BuildBannerColorPreview()
+    {
+        RectTransform row = Row(content, 58);
+        RectTransform sample = Node("BannerPreview", row);
+        Layout(sample, 48, 180);
+        Image border = ImageOn(sample, Settings.BannerForeground);
+        RectTransform inset = Node("Fill", sample);
+        Stretch(inset, Vector2.zero, Vector2.one, Vector2.one * 2f, -Vector2.one * 2f);
+        Image fill = ImageOn(inset, Settings.BannerBackground);
+        TMP_Text text = Label("スタート！", inset, 20, Settings.BannerForeground);
+        text.fontStyle = FontStyles.Bold;
+        text.alignment = TextAlignmentOptions.Center;
+        Stretch(text.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+
+        TMP_Text scope = Label("両手をあげる案内・スタート！・そこまで！", row, 15, Secondary);
+        Layout(scope.rectTransform, 28, 0, 1);
+        refreshRows.Add(() =>
+        {
+            border.color = text.color = Settings.BannerForeground;
+            fill.color = Settings.BannerBackground;
+        });
     }
 
     private TMP_Text TextRow(string text, float height = 28, Color? color = null)
@@ -423,11 +450,17 @@ internal sealed class FruitCatchOperatorPanel : MonoBehaviour
     private void BuildSetting(Settings.Setting setting, RectTransform columns)
     {
         RectTransform cell = Node(setting.Key, columns);
-        Layout(cell, ParameterHeight, 0, 1);
+        Layout(cell, setting.IsColor ? ColorParameterHeight : ParameterHeight, 0, 1);
         ImageOn(cell, ParameterSurface);
         TMP_Text label = Label(SettingCaption(setting), cell, 17);
         label.fontStyle = FontStyles.Bold;
         Stretch(label.rectTransform, Vector2.up, Vector2.one, new Vector2(12, -27), new Vector2(-12, -1));
+
+        if (setting.IsColor)
+        {
+            BuildColorSetting(setting, cell);
+            return;
+        }
 
         RectTransform row = Row(cell, 26);
         Stretch(row, Vector2.zero, Vector2.right, new Vector2(12, 2), new Vector2(-12, 27));
@@ -444,34 +477,10 @@ internal sealed class FruitCatchOperatorPanel : MonoBehaviour
             refreshRows.Add(RefreshSwitch);
             return;
         }
-        Slider slider = DefaultControls.CreateSlider(default).GetComponent<Slider>();
-        slider.navigation = new Navigation { mode = Navigation.Mode.None };
-        slider.transform.SetParent(row, false);
-        Layout((RectTransform)slider.transform, 23, 0, 1);
-        slider.minValue = setting.Min;
-        slider.maxValue = setting.Max;
-        slider.wholeNumbers = setting.Integer;
-        slider.transform.Find("Background").GetComponent<Image>().color = SliderTrack;
-        slider.fillRect.GetComponent<Image>().color = Accent;
-        slider.handleRect.GetComponent<Image>().color = Ink;
+        Slider slider = BuildSlider(row, setting.Min, setting.Max, setting.Integer);
         slider.onValueChanged.AddListener(value => Settings.Set(setting, value));
-        TMP_InputField field = TMP_DefaultControls.CreateInputField(default).GetComponent<TMP_InputField>();
-        field.navigation = new Navigation { mode = Navigation.Mode.None };
-        field.transform.SetParent(row, false);
-        Layout((RectTransform)field.transform, 25, 96);
-        field.contentType = setting.Integer ? TMP_InputField.ContentType.IntegerNumber : TMP_InputField.ContentType.DecimalNumber;
-        field.characterLimit = 15;
-        field.textViewport.offsetMin = new Vector2(8, 0);
-        field.textViewport.offsetMax = new Vector2(-8, 0);
-        field.GetComponent<Image>().color = NumberSurface;
-        if (font != null) field.fontAsset = font;
-        field.textComponent.fontSize = 17;
-        field.textComponent.color = Ink;
-        field.textComponent.alignment = TextAlignmentOptions.MidlineRight;
-        field.customCaretColor = true;
-        field.caretColor = Ink;
-        field.selectionColor = SelectedControl;
-        field.placeholder.gameObject.SetActive(false);
+        TMP_InputField field = BuildValueField(row, setting.Integer ? TMP_InputField.ContentType.IntegerNumber
+            : TMP_InputField.ContentType.DecimalNumber, 96, 15);
         field.onEndEdit.AddListener(input =>
         {
             if (float.TryParse(input, NumberStyles.Float, CultureInfo.InvariantCulture, out float value))
@@ -491,6 +500,86 @@ internal sealed class FruitCatchOperatorPanel : MonoBehaviour
             clip, () => setting.Value, setting.ClipField == "chiliSwaySound" ?
                 Settings.Get("audio.chiliSwaySoundPitch") : 1, setting.Group == "BGM"), 62, clip != null, 23, 13);
         Button("停止", row, () => FruitCatchAudioManager.Instance.StopPreview(), 48, clip != null, 23, 13);
+    }
+
+    private void BuildColorSetting(Settings.Setting setting, RectTransform cell)
+    {
+        RectTransform hexRow = Row(cell, 25);
+        Stretch(hexRow, Vector2.zero, Vector2.right, new Vector2(12, 36), new Vector2(-12, 61));
+        Image swatch = ImageOn(Node("ColorSwatch", hexRow), Settings.GetColor(setting));
+        Layout(swatch.rectTransform, 25, 35);
+        TMP_InputField hex = BuildValueField(hexRow, TMP_InputField.ContentType.Standard, 112, 7);
+        hex.textComponent.alignment = TextAlignmentOptions.Center;
+        hex.onEndEdit.AddListener(input =>
+        {
+            string value = input.StartsWith("#", StringComparison.Ordinal) ? input : "#" + input;
+            if (value.Length == 7 && ColorUtility.TryParseHtmlString(value, out Color color))
+                Settings.SetColor(setting, color);
+            else
+                message = "色は #FFF8E1 のように6桁で入力してください。";
+            hex.SetTextWithoutNotify("#" + ColorUtility.ToHtmlStringRGB(Settings.GetColor(setting)));
+        });
+
+        RectTransform rgbRow = Row(cell, 25);
+        Stretch(rgbRow, Vector2.zero, Vector2.right, new Vector2(12, 5), new Vector2(-12, 30));
+        var sliders = new Slider[3];
+        for (int i = 0; i < sliders.Length; i++)
+        {
+            int channel = i;
+            Layout(Label("RGB"[i].ToString(), rgbRow, 14).rectTransform, 22, 17);
+            sliders[i] = BuildSlider(rgbRow, 0, 255, true);
+            sliders[i].onValueChanged.AddListener(value =>
+            {
+                Color32 color = Settings.GetColor(setting);
+                color[channel] = (byte)value;
+                Settings.SetColor(setting, color);
+            });
+        }
+        refreshRows.Add(() =>
+        {
+            Color32 color = Settings.GetColor(setting);
+            swatch.color = color;
+            if (!hex.isFocused) hex.SetTextWithoutNotify("#" + ColorUtility.ToHtmlStringRGB(color));
+            for (int i = 0; i < sliders.Length; i++)
+                sliders[i].SetValueWithoutNotify(color[i]);
+        });
+    }
+
+    private static Slider BuildSlider(RectTransform row, float min, float max, bool wholeNumbers)
+    {
+        Slider slider = DefaultControls.CreateSlider(default).GetComponent<Slider>();
+        slider.navigation = new Navigation { mode = Navigation.Mode.None };
+        slider.transform.SetParent(row, false);
+        Layout((RectTransform)slider.transform, 23, 0, 1);
+        slider.minValue = min;
+        slider.maxValue = max;
+        slider.wholeNumbers = wholeNumbers;
+        slider.transform.Find("Background").GetComponent<Image>().color = SliderTrack;
+        slider.fillRect.GetComponent<Image>().color = Accent;
+        slider.handleRect.GetComponent<Image>().color = Ink;
+        return slider;
+    }
+
+    private TMP_InputField BuildValueField(RectTransform row, TMP_InputField.ContentType type, float width, int limit)
+    {
+        TMP_InputField field = TMP_DefaultControls.CreateInputField(default).GetComponent<TMP_InputField>();
+        field.navigation = new Navigation { mode = Navigation.Mode.None };
+        field.transform.SetParent(row, false);
+        Layout((RectTransform)field.transform, 25, width);
+        field.contentType = type;
+        field.characterLimit = limit;
+        field.textViewport.offsetMin = new Vector2(8, 0);
+        field.textViewport.offsetMax = new Vector2(-8, 0);
+        field.GetComponent<Image>().color = NumberSurface;
+        if (font != null) field.fontAsset = font;
+        field.textComponent.fontSize = 17;
+        field.textComponent.color = Ink;
+        field.textComponent.alignment = TextAlignmentOptions.MidlineRight;
+        field.customCaretColor = true;
+        field.caretColor = Ink;
+        field.selectionColor = SelectedControl;
+        field.placeholder.gameObject.SetActive(false);
+        return field;
     }
 
     private string SettingCaption(Settings.Setting setting)

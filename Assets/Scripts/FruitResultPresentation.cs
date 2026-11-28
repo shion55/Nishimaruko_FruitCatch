@@ -16,7 +16,8 @@ public sealed class FruitResultPresentation : MonoBehaviour
     [SerializeField, Min(0.01f)] private float fruitAppearanceDuration = 0.23f;
     [SerializeField, Min(0.01f)] private float countUpDuration = 0.55f;
     [SerializeField, Min(0f)] private float scoreRevealTime = 1.05f;
-    [SerializeField, Min(0f)] private float rankingRevealTime = 1.5f;
+    [SerializeField, Min(0f), Tooltip("結果発表開始からランキングを表示するまでの秒数。0にすると結果画面と同時に表示します。")]
+    private float rankingRevealTime;
 
     private const float ScorePopDuration = 0.25f;
     private static readonly Color[] TileColors =
@@ -47,10 +48,11 @@ public sealed class FruitResultPresentation : MonoBehaviour
             float iconsFinished = entries.Count > 0 ? (entries.Count - 1) * interval + iconDuration : 0f;
             float countersFinished = entries.Count > 0 ? iconsFinished + counterDuration : 0f;
             float showScoreAt = Mathf.Max(scoreRevealTime, countersFinished);
-            float showRankingAt = Mathf.Max(rankingRevealTime, showScoreAt + ScorePopDuration);
-            float playbackSpeed = Mathf.Max(1f, (showRankingAt + 0.05f) / Mathf.Max(0.01f, animationBudget));
+            float showRankingAt = Mathf.Max(0f, rankingRevealTime);
+            float animationEnd = Mathf.Max(showRankingAt, showScoreAt + ScorePopDuration);
+            float playbackSpeed = Mathf.Max(1f, (animationEnd + 0.05f) / Mathf.Max(0.01f, animationBudget));
 
-            for (float elapsed = 0f; elapsed < showRankingAt && animationEnabled;
+            for (float elapsed = 0f; elapsed < animationEnd && animationEnabled;
                 elapsed += Time.unscaledDeltaTime * playbackSpeed)
             {
                 float countProgress = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((elapsed - iconsFinished) / counterDuration));
@@ -85,7 +87,7 @@ public sealed class FruitResultPresentation : MonoBehaviour
                         score.localScale = scoreScale * (1f + 0.16f * Mathf.Sin(progress * Mathf.PI));
                     }
                 }
-                if (ranking != null) ranking.SetActive(false);
+                if (ranking != null) ranking.SetActive(elapsed >= showRankingAt);
                 yield return null;
             }
         }

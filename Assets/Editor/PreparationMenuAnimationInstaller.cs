@@ -91,7 +91,7 @@ public static class PreparationMenuAnimationInstaller
             {
                 text.text =
                     "こえをだすと口をひらいて\nくだものをたべられるよ\n\n" +
-                    "こえの高さをかえると\nなにかがかわるかも！";
+                    "声の高さを変えると\nくだもののはやさが変わるよ";
                 EditorUtility.SetDirty(text);
             }
         }

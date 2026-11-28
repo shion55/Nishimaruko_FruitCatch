@@ -88,7 +88,7 @@ public static class PreparationRoleCardInstaller
                 voicePanel.transform,
                 "EaterExplanation",
                 "[声|こえ]を[出|だ]すと[口|くち]をひらいて\nくだものを[食|た]べられるよ\n\n" +
-                "[声|こえ]の[高|たか]さをかえると\nなにかがかわるかも！");
+                "[声|こえ]の[高|たか]さを[変|か]えると\nくだもののはやさが[変|か]わるよ");
 
             Transform existingAction = FindChildRecursive(voicePanel.transform, "VoiceActionPrompt");
             TMP_Text actionText = existingAction != null

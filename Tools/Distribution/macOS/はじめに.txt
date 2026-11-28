@@ -1,0 +1,53 @@
+FruitCatch macOS 予備機用
+
+【必要なもの】
+macOS 13 以降を搭載した Apple Silicon または Intel の Mac、カメラ、マイク、
+Python 3.12 が必要です。
+Python は python.org の「macOS 64-bit universal2 installer」を使えます。
+https://www.python.org/downloads/macos/
+Apple Silicon では Terminal の「Rosetta を使用して開く」を外してセットアップしてください。
+初回セットアップでは Python ライブラリをダウンロードします。
+セットアップ後、FruitCatch の起動にインターネット接続は不要です。
+
+【初回セットアップ】
+1. FruitCatch.app、Tracking フォルダ、2つの .command が同じフォルダにある状態で、
+   Mac の書き込み可能な場所へ配布フォルダ一式をコピーします。
+2. 「Setup FruitCatch.command」を開きます。Windows からコピーした場合や、実行権限の
+   エラーが出た場合は、ターミナルで配布フォルダに移動して次の2行を実行してください。
+
+   chmod +x "Setup FruitCatch.command" "Start FruitCatch.command"
+   ./Setup\ FruitCatch.command
+
+   ターミナルで cd と半角空白を入力し、Finder から配布フォルダをドラッグして Enter を
+   押すと、その場所に移動できます。
+3. Setup が Tracking/.venv を作成し、ライブラリを導入します。FruitCatch.app の実行権限を
+   設定し、署名の検証に通らない場合は、この Mac で実行するためのローカル署名を施します。
+
+【通常の起動とカメラ選択】
+1. 「Start FruitCatch.command」を開きます。
+2. カメラを変更するには「2」を入力し、表示されたカメラの番号を選びます。
+   選択は Tracking/camera_config.json に保存されます。カメラの画質は AVFoundation と
+   カメラの標準設定に従います。
+3. Enter または「1」で開始します。映像と追跡の準備ができるとゲームが開きます。
+4. ゲームを終了するとトラッカーも停止し、起動メニューに戻ります。
+   再起動するには Enter、カメラを変えるには「2」、メニュー自体を閉じるには「Q」です。
+
+【カメラ・マイクの許可】
+初回起動時に macOS のアクセス確認が出たら許可してください。
+カメラはターミナルまたは Python、マイクは FruitCatch など、実際のダイアログに表示された
+アプリ名で許可します。拒否した場合は「システム設定」→「プライバシーとセキュリティ」→
+「カメラ」または「マイク」で許可し、ゲームと起動メニューを開き直してください。
+カメラを使用中の別アプリがあれば終了し、起動メニューでカメラを選び直してください。
+
+【Gatekeeper による起動制限】
+この展示用ビルドには Apple の公証が付いていません。Mac が起動を止めた場合は、
+自分たちがビルド・配布したファイルであることを確認します。対象ファイルを一度開こうと
+してから「システム設定」→「プライバシーとセキュリティ」で、該当ファイルに対して
+「このまま開く」を選びます。FruitCatch.app の例外を登録するために一度直接開いた場合は、
+そのゲームを終了し、「Start FruitCatch.command」から開き直してください。
+https://support.apple.com/102445
+
+【当日の確認】
+事前にカメラ映像、顔登録、移動、発声、F4 運営パネル、ゲーム終了後の再起動を一度確認します。
+ゲームとトラッカーは同じ Mac 上で通信します。別の FruitCatch が起動している場合には
+先に終了してください。別の Mac に移すときは、その Mac 上で Setup を実行してください。
